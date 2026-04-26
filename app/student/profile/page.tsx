@@ -1,0 +1,66 @@
+import Link from "next/link"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { ScanFace, CheckCircle2, AlertCircle } from "lucide-react"
+import { createClient } from "@/lib/supabase/server"
+import { ProfileForm } from "@/components/profile-form"
+import { formatDateTime } from "@/lib/utils-format"
+
+export default async function StudentProfilePage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+  if (!profile) return null
+
+  const enrolled = !!profile.face_descriptor
+
+  return (
+    <div className="flex flex-col gap-6 max-w-3xl mx-auto w-full">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Profile</h1>
+        <p className="text-muted-foreground">Manage your account details.</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Personal information</CardTitle>
+          <CardDescription>This appears on attendance reports.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ProfileForm profile={profile} role="student" />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div
+              className={`size-10 rounded-lg grid place-items-center ${enrolled ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+            >
+              {enrolled ? <CheckCircle2 className="size-5" /> : <AlertCircle className="size-5" />}
+            </div>
+            <div>
+              <CardTitle>Face recognition</CardTitle>
+              <CardDescription>
+                {enrolled
+                  ? `Enrolled ${profile.face_enrolled_at ? formatDateTime(profile.face_enrolled_at) : ""}`
+                  : "Not enrolled yet"}
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant={enrolled ? "secondary" : "default"}>
+            <Link href="/student/enroll-face">
+              <ScanFace className="size-4" />
+              {enrolled ? "Re-enroll face" : "Enroll face"}
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

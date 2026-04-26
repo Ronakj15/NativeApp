@@ -1,0 +1,267 @@
+import Link from "next/link"
+import { Bluetooth, ScanFace, AlertCircle, CalendarDays, TrendingUp, ArrowRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { createClient } from "@/lib/supabase/server"
+import { formatTime } from "@/lib/utils-format"
+import { LiveLectureBanner } from "@/components/live-lecture-banner"
+
+export default async function StudentDashboardPage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+
+  // Today's lectures via enrollments
+  const { data: enrollments } = await supabase.from("enrollments").select("course_id").eq("student_id", user.id)
+  const courseIds = enrollments?.map((e) => e.course_id) ?? []
+
+  const today = new Date()
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString()
+
+  const { data: lectures } = courseIds.length
+    ? await supabase
+        .from("lectures")
+        .select("*, courses!inner(name, code, color)")
+        .in("course_id", courseIds)
+        .gte("scheduled_start", start)
+        .lt("scheduled_start", end)
+        .order("scheduled_start", { ascending: true })
+    : { data: [] as any[] }
+
+  // Live lectures the student is enrolled in
+  const { data: liveLectures } = courseIds.length
+    ? await supabase
+        .from("lectures")
+        .select("*, courses!inner(name, code)")
+        .in("course_id", courseIds)
+        .eq("status", "live")
+    : { data: [] as any[] }
+
+  // Attendance stats
+  const { data: attendance } = await supabase
+    .from("attendance")
+    .select("status, lecture_id, lectures!inner(course_id)")
+    .eq("student_id", user.id)
+
+  const totals = {
+    total: attendance?.length ?? 0,
+    present: attendance?.filter((a) => a.status === "present").length ?? 0,
+    late: attendance?.filter((a) => a.status === "late").length ?? 0,
+    absent: attendance?.filter((a) => a.status === "absent").length ?? 0,
+  }
+  const overallPct = totals.total ? Math.round(((totals.present + totals.late) / totals.total) * 100) : 0
+
+  // Per-course
+  const { data: courses } = courseIds.length
+    ? await supabase.from("courses").select("*").in("id", courseIds)
+    : { data: [] as any[] }
+
+  const courseStats = (courses ?? []).map((c) => {
+    const list = (attendance ?? []).filter((a: any) => a.lectures?.course_id === c.id)
+    const present = list.filter((a) => a.status === "present" || a.status === "late").length
+    const total = list.length
+    const pct = total ? Math.round((present / total) * 100) : 0
+    return { course: c, present, total, pct }
+  })
+
+  const faceEnrolled = !!profile?.face_descriptor
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+          Hi, {profile?.full_name?.split(" ")[0] || "there"}
+        </h1>
+        <p className="text-muted-foreground">Here&apos;s your attendance at a glance.</p>
+      </div>
+
+      {!faceEnrolled && (
+        <Card className="border-warning/40 bg-warning/5">
+          <CardContent className="flex flex-col md:flex-row items-start md:items-center gap-4 p-5">
+            <div className="size-10 rounded-lg bg-warning/20 text-warning grid place-items-center shrink-0">
+              <ScanFace className="size-5" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium">Enroll your face to start marking attendance</p>
+              <p className="text-sm text-muted-foreground">
+                A one-time setup. Your face descriptor is stored securely; we never store photos.
+              </p>
+            </div>
+            <Button asChild>
+              <Link href="/student/enroll-face">
+                Enroll now <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {liveLectures && liveLectures.length > 0 && (
+        <LiveLectureBanner lectures={liveLectures as any[]} />
+      )}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Overall attendance</CardDescription>
+            <CardTitle className="text-3xl">{overallPct}%</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Progress value={overallPct} className="h-2" />
+            <p className="text-xs text-muted-foreground mt-2">
+              {totals.present + totals.late} of {totals.total} lectures attended
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>This week</CardDescription>
+            <CardTitle className="text-3xl">{lectures?.length ?? 0}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">Lectures scheduled today</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Status</CardDescription>
+            <CardTitle className="text-3xl">
+              {overallPct >= 75 ? (
+                <span className="text-success">Safe</span>
+              ) : overallPct >= 65 ? (
+                <span className="text-warning">Borderline</span>
+              ) : (
+                <span className="text-destructive">At risk</span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">75% threshold for exam eligibility</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Today&apos;s schedule</CardTitle>
+            <CardDescription>Your lectures for today</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {lectures && lectures.length ? (
+              lectures.map((l: any) => (
+                <div
+                  key={l.id}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50"
+                >
+                  <div className="size-10 rounded-md bg-primary/10 text-primary grid place-items-center shrink-0">
+                    <CalendarDays className="size-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{l.courses?.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {l.courses?.code} • {l.room ?? "TBA"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm tabular-nums">{formatTime(l.scheduled_start)}</p>
+                    {l.status === "live" && (
+                      <Badge className="mt-1 bg-success text-success-foreground">Live</Badge>
+                    )}
+                    {l.status === "completed" && <Badge variant="secondary" className="mt-1">Done</Badge>}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="flex items-center justify-center text-sm text-muted-foreground py-10">
+                No lectures scheduled today.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>By subject</CardTitle>
+            <CardDescription>Your top courses</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {courseStats.length ? (
+              courseStats.slice(0, 6).map((s) => (
+                <div key={s.course.id} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="truncate">{s.course.name}</span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {s.present}/{s.total} • {s.pct}%
+                    </span>
+                  </div>
+                  <Progress value={s.pct} className="h-1.5" />
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No courses yet.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <ActionCard
+          href="/student/mark"
+          title="Mark attendance"
+          desc="Find a live lecture beacon and verify your face."
+          icon={Bluetooth}
+        />
+        <ActionCard
+          href="/student/calculator"
+          title="Bunk calculator"
+          desc="See how many lectures you can skip safely."
+          icon={TrendingUp}
+        />
+        <ActionCard
+          href="/student/heatmap"
+          title="Heatmap"
+          desc="Visualize your attendance patterns."
+          icon={CalendarDays}
+        />
+      </div>
+    </div>
+  )
+}
+
+function ActionCard({
+  href,
+  title,
+  desc,
+  icon: Icon,
+}: {
+  href: string
+  title: string
+  desc: string
+  icon: React.ComponentType<{ className?: string }>
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3 hover:border-primary/40 hover:shadow-sm transition"
+    >
+      <div className="size-9 rounded-lg bg-primary/10 text-primary grid place-items-center">
+        <Icon className="size-5" />
+      </div>
+      <div>
+        <p className="font-medium">{title}</p>
+        <p className="text-sm text-muted-foreground">{desc}</p>
+      </div>
+      <span className="text-sm text-primary inline-flex items-center gap-1">
+        Open <ArrowRight className="size-3.5" />
+      </span>
+    </Link>
+  )
+}
