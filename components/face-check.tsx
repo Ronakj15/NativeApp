@@ -289,8 +289,8 @@ export function FaceCheck({
   return (
     <div className="flex flex-col gap-4">
       {/* HUD frame */}
-      <div className="relative rounded-2xl p-[1px] bg-gradient-to-br from-primary/40 via-primary/10 to-transparent">
-        <div className="relative aspect-[4/3] rounded-[15px] overflow-hidden bg-foreground/95">
+      <div className="relative rounded-2xl brutal bg-foreground p-1">
+        <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-foreground/95">
           <video
             ref={videoRef}
             playsInline

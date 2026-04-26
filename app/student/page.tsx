@@ -74,18 +74,18 @@ export default async function StudentDashboardPage() {
       </div>
 
       {!faceEnrolled && (
-        <Card className="border-warning/40 bg-warning/5">
+        <Card className="glass brutal rounded-2xl border-warning text-foreground">
           <CardContent className="flex flex-col md:flex-row items-start md:items-center gap-4 p-5">
-            <div className="size-10 rounded-lg bg-warning/20 text-warning grid place-items-center shrink-0">
+            <div className="size-11 rounded-lg bg-warning text-warning-foreground border-2 border-foreground grid place-items-center shrink-0">
               <ScanFace className="size-5" />
             </div>
             <div className="flex-1">
-              <p className="font-medium">Enroll your face to start marking attendance</p>
+              <p className="font-bold tracking-tight">Enroll your face to start marking attendance</p>
               <p className="text-sm text-muted-foreground">
                 A one-time setup. Your face descriptor is stored securely; we never store photos.
               </p>
             </div>
-            <Button asChild>
+            <Button asChild className="brutal-sm brutal-lift bg-foreground text-background hover:bg-foreground">
               <Link href="/student/enroll-face">
                 Enroll now <ArrowRight className="size-4" />
               </Link>
@@ -97,10 +97,12 @@ export default async function StudentDashboardPage() {
       <AttendanceRadar faceEnrolled={faceEnrolled} />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card className="glass brutal rounded-2xl">
           <CardHeader className="pb-2">
-            <CardDescription>Overall attendance</CardDescription>
-            <CardTitle className="text-3xl">{overallPct}%</CardTitle>
+            <CardDescription className="font-mono uppercase tracking-widest text-[11px]">
+              Overall attendance
+            </CardDescription>
+            <CardTitle className="text-4xl font-bold tracking-tight">{overallPct}%</CardTitle>
           </CardHeader>
           <CardContent>
             <Progress value={overallPct} className="h-2" />
@@ -109,19 +111,19 @@ export default async function StudentDashboardPage() {
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="glass brutal rounded-2xl">
           <CardHeader className="pb-2">
-            <CardDescription>This week</CardDescription>
-            <CardTitle className="text-3xl">{lectures?.length ?? 0}</CardTitle>
+            <CardDescription className="font-mono uppercase tracking-widest text-[11px]">Today</CardDescription>
+            <CardTitle className="text-4xl font-bold tracking-tight">{lectures?.length ?? 0}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">Lectures scheduled today</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="glass brutal rounded-2xl">
           <CardHeader className="pb-2">
-            <CardDescription>Status</CardDescription>
-            <CardTitle className="text-3xl">
+            <CardDescription className="font-mono uppercase tracking-widest text-[11px]">Status</CardDescription>
+            <CardTitle className="text-4xl font-bold tracking-tight">
               {overallPct >= 75 ? (
                 <span className="text-success">Safe</span>
               ) : overallPct >= 65 ? (
@@ -138,9 +140,9 @@ export default async function StudentDashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="glass brutal rounded-2xl lg:col-span-2">
           <CardHeader>
-            <CardTitle>Today&apos;s schedule</CardTitle>
+            <CardTitle className="tracking-tight">Today&apos;s schedule</CardTitle>
             <CardDescription>Your lectures for today</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -148,9 +150,9 @@ export default async function StudentDashboardPage() {
               lectures.map((l: any) => (
                 <div
                   key={l.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50"
+                  className="flex items-center gap-3 p-3 rounded-xl border-2 border-foreground/15 bg-card/40 hover:border-foreground hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0_0_var(--foreground)] transition-all"
                 >
-                  <div className="size-10 rounded-md bg-primary/10 text-primary grid place-items-center shrink-0">
+                  <div className="size-10 rounded-md bg-foreground text-background border-2 border-foreground grid place-items-center shrink-0">
                     <CalendarDays className="size-5" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -162,7 +164,7 @@ export default async function StudentDashboardPage() {
                   <div className="text-right">
                     <p className="text-sm tabular-nums">{formatTime(l.scheduled_start)}</p>
                     {l.status === "live" && (
-                      <Badge className="mt-1 bg-success text-success-foreground">Live</Badge>
+                      <Badge className="mt-1 bg-success text-success-foreground border-2 border-foreground">Live</Badge>
                     )}
                     {l.status === "completed" && <Badge variant="secondary" className="mt-1">Done</Badge>}
                   </div>
@@ -176,9 +178,9 @@ export default async function StudentDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="glass brutal rounded-2xl">
           <CardHeader>
-            <CardTitle>By subject</CardTitle>
+            <CardTitle className="tracking-tight">By subject</CardTitle>
             <CardDescription>Your top courses</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -233,16 +235,16 @@ function ActionCard({
   return (
     <Link
       href={href}
-      className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3 hover:border-primary/40 hover:shadow-sm transition"
+      className="glass brutal brutal-lift rounded-2xl p-5 flex flex-col gap-3 text-foreground"
     >
-      <div className="size-9 rounded-lg bg-primary/10 text-primary grid place-items-center">
+      <div className="size-10 rounded-lg bg-foreground text-background border-2 border-foreground grid place-items-center">
         <Icon className="size-5" />
       </div>
       <div>
-        <p className="font-medium">{title}</p>
+        <p className="font-bold tracking-tight">{title}</p>
         <p className="text-sm text-muted-foreground">{desc}</p>
       </div>
-      <span className="text-sm text-primary inline-flex items-center gap-1">
+      <span className="text-sm font-semibold inline-flex items-center gap-1">
         Open <ArrowRight className="size-3.5" />
       </span>
     </Link>

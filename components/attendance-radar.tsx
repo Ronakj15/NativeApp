@@ -42,17 +42,22 @@ function hashString(str: string) {
   return h
 }
 
-// Deterministic position on the radar disc for a given lecture id
-function bubblePosition(id: string, index: number, total: number) {
+// Deterministic polar coords for a given lecture id; angle in radians, radius normalized 0..1
+function polarFor(id: string, index: number, total: number) {
   const h = hashString(id + ":" + index)
-  // Spread bubbles evenly by index, then jitter a little using the hash
   const baseAngle = (index / Math.max(total, 1)) * Math.PI * 2
-  const jitter = ((h % 1000) / 1000 - 0.5) * 0.6 // ±0.3 rad
+  const jitter = ((h % 1000) / 1000 - 0.5) * 0.6
   const angle = baseAngle + jitter
-  const radius = 26 + (h % 14) // 26%–40% from center
-  const x = 50 + Math.cos(angle) * radius
-  const y = 50 + Math.sin(angle) * radius
-  return { x, y, angle: (angle * 180) / Math.PI }
+  const radius = 0.45 + ((h >> 8) % 1000) / 1000 * 0.25 // 0.45–0.70
+  return { angle, radius }
+}
+
+type Blip = {
+  lecture: LiveLecture
+  angle: number
+  radius: number
+  marked: boolean
+  appearedAt: number
 }
 
 export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
@@ -62,6 +67,7 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
   const [selected, setSelected] = useState<LiveLecture | null>(null)
   const [saving, setSaving] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [hovered, setHovered] = useState<string | null>(null)
   const courseIdsRef = useRef<string[]>([])
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -123,10 +129,23 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
     [lectures, markedIds],
   )
   const hasActionable = unmarkedLectures.length > 0
-  const positions = useMemo(
-    () => lectures.map((l, i) => ({ lecture: l, ...bubblePosition(l.id, i, lectures.length) })),
-    [lectures],
-  )
+
+  // Build blips with stable appearedAt for entrance animation
+  const appearedAtRef = useRef<Map<string, number>>(new Map())
+  const blips: Blip[] = useMemo(() => {
+    const now = performance.now()
+    return lectures.map((l, i) => {
+      if (!appearedAtRef.current.has(l.id)) appearedAtRef.current.set(l.id, now)
+      const { angle, radius } = polarFor(l.id, i, lectures.length)
+      return {
+        lecture: l,
+        angle,
+        radius,
+        marked: markedIds.has(l.id),
+        appearedAt: appearedAtRef.current.get(l.id) ?? now,
+      }
+    })
+  }, [lectures, markedIds])
 
   async function handleVerify(res: FaceCheckResult) {
     if (!selected) return
@@ -175,27 +194,19 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
       return
     }
     if (unmarkedLectures.length === 0) return
-    // Pick the first unmarked live lecture
     setSelected(unmarkedLectures[0])
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden">
-      <div
-        className={cn(
-          "relative px-5 py-6 md:px-8 md:py-8 transition-colors",
-          hasActionable
-            ? "bg-[radial-gradient(circle_at_50%_30%,oklch(0.7_0.18_265/0.18),transparent_70%)]"
-            : "bg-[radial-gradient(circle_at_50%_30%,oklch(0.55_0.18_265/0.08),transparent_70%)]",
-        )}
-      >
+    <div className="glass brutal rounded-3xl overflow-hidden text-foreground">
+      <div className="relative px-5 py-6 md:px-8 md:py-8">
         {/* HUD top bar */}
-        <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest text-muted-foreground">
+        <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest">
           <div className="flex items-center gap-2">
             <span className="size-2 rounded-full bg-primary animate-radar-pulse shadow-[0_0_10px_oklch(0.7_0.18_265)]" />
-            <span>Beacon scan</span>
+            <span className="text-foreground">Beacon Scan</span>
           </div>
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2 text-muted-foreground">
             <Activity className="size-3" />
             <span>
               {hasActionable ? `${unmarkedLectures.length} signal${unmarkedLectures.length === 1 ? "" : "s"}` : "Idle"}
@@ -203,20 +214,56 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
           </div>
         </div>
 
-        {/* Radar */}
-        <div className="relative mx-auto my-4 aspect-square w-full max-w-sm md:max-w-md">
-          <Radar
-            lectures={positions}
-            markedIds={markedIds}
-            onPick={(l) => {
-              if (markedIds.has(l.id)) return
-              if (!faceEnrolled) {
-                toast.error("Enroll your face first to mark attendance.")
-                return
-              }
-              setSelected(l)
-            }}
-          />
+        {/* Radar canvas + clickable blips */}
+        <div className="relative mx-auto my-4 aspect-square w-full max-w-md">
+          <RadarCanvas blips={blips} hoveredId={hovered} />
+
+          {/* Click hit areas / tooltips on top of canvas */}
+          <div className="absolute inset-0">
+            {blips.map((b) => {
+              const cx = 50 + Math.cos(b.angle) * b.radius * 50
+              const cy = 50 + Math.sin(b.angle) * b.radius * 50
+              return (
+                <button
+                  key={b.lecture.id}
+                  onClick={() => {
+                    if (b.marked) return
+                    if (!faceEnrolled) {
+                      toast.error("Enroll your face first to mark attendance.")
+                      return
+                    }
+                    setSelected(b.lecture)
+                  }}
+                  onMouseEnter={() => setHovered(b.lecture.id)}
+                  onMouseLeave={() => setHovered(null)}
+                  className="absolute group focus:outline-none animate-blip-pop"
+                  style={{ left: `${cx}%`, top: `${cy}%`, transform: "translate(-50%,-50%)" }}
+                  aria-label={`Lecture ${b.lecture.courses.code}`}
+                >
+                  <span className="block size-7 rounded-full bg-transparent" />
+                  <span
+                    className={cn(
+                      "absolute left-1/2 -translate-x-1/2 -bottom-7 px-2 py-0.5 rounded-md font-mono text-[10px] tracking-widest uppercase border whitespace-nowrap",
+                      b.marked
+                        ? "bg-success text-success-foreground border-success"
+                        : "bg-foreground text-background border-foreground",
+                    )}
+                  >
+                    {b.lecture.courses.code}
+                  </span>
+                  <div className="absolute left-1/2 top-7 -translate-x-1/2 z-10 w-48 rounded-md p-2 glass brutal-sm opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity pointer-events-none mt-3">
+                    <p className="text-xs font-semibold truncate">{b.lecture.courses.name}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {b.lecture.room ?? "TBA"} • {formatTime(b.lecture.scheduled_start)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {b.marked ? "Already marked" : "Tap radar button to verify"}
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* Lecture chips below radar */}
@@ -227,16 +274,17 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
               return (
                 <Badge
                   key={l.id}
-                  variant={marked ? "secondary" : "default"}
+                  variant="outline"
                   className={cn(
-                    "gap-1.5 px-2.5 py-1 font-mono text-[11px] tracking-wider uppercase",
-                    !marked && "bg-primary/15 text-primary border border-primary/30",
-                    marked && "bg-success/10 text-success border border-success/30",
+                    "gap-1.5 px-2.5 py-1 font-mono text-[11px] tracking-wider uppercase border-2",
+                    marked
+                      ? "bg-success text-success-foreground border-success"
+                      : "bg-foreground text-background border-foreground",
                   )}
                 >
                   {marked ? <CheckCircle2 className="size-3" /> : <Radio className="size-3" />}
                   {l.courses.code}
-                  <span className="text-muted-foreground/70 normal-case font-normal hidden sm:inline">
+                  <span className="opacity-80 normal-case font-normal hidden sm:inline">
                     {l.room ?? "TBA"} • {formatTime(l.scheduled_start)}
                   </span>
                 </Badge>
@@ -253,7 +301,7 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
                 <AlertCircle className="size-4" />
                 Enroll your face to start marking attendance
               </div>
-              <Button asChild size="sm" variant="outline" className="border-warning/40 text-warning hover:bg-warning/10">
+              <Button asChild size="sm" className="brutal-sm brutal-lift bg-warning text-warning-foreground hover:bg-warning">
                 <Link href="/student/enroll-face">
                   <ScanFace className="size-4" />
                   Enroll now
@@ -266,10 +314,10 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
               onClick={openVerify}
               disabled={!hasActionable || saving}
               className={cn(
-                "min-w-56 h-12 text-base font-semibold tracking-wide transition-all",
+                "brutal brutal-lift min-w-60 h-12 text-base font-bold tracking-wide rounded-xl",
                 hasActionable
-                  ? "bg-primary text-primary-foreground shadow-[0_0_30px_oklch(0.7_0.18_265/0.5)] hover:shadow-[0_0_40px_oklch(0.7_0.18_265/0.7)] animate-radar-pulse"
-                  : "bg-secondary text-muted-foreground hover:bg-secondary",
+                  ? "bg-primary text-primary-foreground hover:bg-primary"
+                  : "bg-secondary text-muted-foreground hover:bg-secondary opacity-70",
               )}
             >
               {saving ? (
@@ -299,7 +347,7 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
       </div>
 
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl glass brutal rounded-2xl">
           <DialogHeader>
             <DialogTitle>Verify your face</DialogTitle>
             <DialogDescription>
@@ -340,123 +388,282 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
   )
 }
 
-function Radar({
-  lectures,
-  markedIds,
-  onPick,
-}: {
-  lectures: { lecture: LiveLecture; x: number; y: number }[]
-  markedIds: Set<string>
-  onPick: (l: LiveLecture) => void
-}) {
+/* ====================== Real radar canvas ====================== */
+
+function RadarCanvas({ blips, hoveredId }: { blips: Blip[]; hoveredId: string | null }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const rafRef = useRef<number | null>(null)
+  const sweepRef = useRef(0) // current sweep angle in radians
+  const blipsRef = useRef<Blip[]>(blips)
+  const hoveredRef = useRef<string | null>(hoveredId)
+  const themeRef = useRef<{ primary: string; success: string; fg: string; bg: string }>({
+    primary: "rgba(110, 80, 240, 1)",
+    success: "rgba(60, 200, 130, 1)",
+    fg: "rgba(20, 20, 30, 1)",
+    bg: "rgba(255, 255, 255, 1)",
+  })
+
+  useEffect(() => {
+    blipsRef.current = blips
+  }, [blips])
+
+  useEffect(() => {
+    hoveredRef.current = hoveredId
+  }, [hoveredId])
+
+  // Resolve theme colors from CSS variables (re-read on theme changes)
+  useEffect(() => {
+    const refreshTheme = () => {
+      const cs = getComputedStyle(document.documentElement)
+      const get = (name: string, fallback: string) => {
+        const v = cs.getPropertyValue(name).trim()
+        if (!v) return fallback
+        // Some browsers may return the raw "L C H" (without the oklch wrapper)
+        return v.startsWith("oklch") || v.startsWith("rgb") || v.startsWith("#")
+          ? v
+          : `oklch(${v})`
+      }
+      themeRef.current = {
+        primary: get("--primary", themeRef.current.primary),
+        success: get("--success", themeRef.current.success),
+        fg: get("--foreground", themeRef.current.fg),
+        bg: get("--background", themeRef.current.bg),
+      }
+    }
+    refreshTheme()
+    const obs = new MutationObserver(refreshTheme)
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    return () => obs.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    if (!canvas || !container) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    const dpr = Math.max(1, window.devicePixelRatio || 1)
+
+    function resize() {
+      if (!canvas || !container || !ctx) return
+      const rect = container.getBoundingClientRect()
+      canvas.width = rect.width * dpr
+      canvas.height = rect.height * dpr
+      canvas.style.width = `${rect.width}px`
+      canvas.style.height = `${rect.height}px`
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    }
+    resize()
+    const ro = new ResizeObserver(resize)
+    ro.observe(container)
+
+    let lastTime = performance.now()
+    const SWEEP_PERIOD = 4200 // ms per full revolution
+
+    const draw = (now: number) => {
+      const dt = now - lastTime
+      lastTime = now
+      sweepRef.current = (sweepRef.current + (Math.PI * 2 * dt) / SWEEP_PERIOD) % (Math.PI * 2)
+
+      const w = canvas.width / dpr
+      const h = canvas.height / dpr
+      const cx = w / 2
+      const cy = h / 2
+      const R = Math.min(w, h) / 2 - 4
+      const theme = themeRef.current
+
+      ctx.clearRect(0, 0, w, h)
+
+      // Disc background (radial gradient)
+      const discGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R)
+      discGrad.addColorStop(0, withAlpha(theme.primary, 0.12))
+      discGrad.addColorStop(0.65, withAlpha(theme.primary, 0.05))
+      discGrad.addColorStop(1, withAlpha(theme.primary, 0.02))
+      ctx.beginPath()
+      ctx.arc(cx, cy, R, 0, Math.PI * 2)
+      ctx.fillStyle = discGrad
+      ctx.fill()
+
+      // Concentric rings
+      ctx.lineWidth = 1
+      for (let i = 1; i <= 4; i++) {
+        const r = (R * i) / 4
+        ctx.beginPath()
+        ctx.arc(cx, cy, r, 0, Math.PI * 2)
+        ctx.strokeStyle = withAlpha(theme.fg, i === 4 ? 0.35 : 0.12)
+        ctx.setLineDash(i === 3 ? [4, 6] : [])
+        ctx.stroke()
+      }
+      ctx.setLineDash([])
+
+      // Crosshairs
+      ctx.beginPath()
+      ctx.moveTo(cx - R, cy)
+      ctx.lineTo(cx + R, cy)
+      ctx.moveTo(cx, cy - R)
+      ctx.lineTo(cx, cy + R)
+      ctx.strokeStyle = withAlpha(theme.fg, 0.1)
+      ctx.stroke()
+
+      // Bearing ticks every 30 deg
+      ctx.strokeStyle = withAlpha(theme.fg, 0.35)
+      ctx.lineWidth = 1
+      for (let a = 0; a < 360; a += 30) {
+        const rad = (a * Math.PI) / 180
+        const x1 = cx + Math.cos(rad) * (R - 6)
+        const y1 = cy + Math.sin(rad) * (R - 6)
+        const x2 = cx + Math.cos(rad) * R
+        const y2 = cy + Math.sin(rad) * R
+        ctx.beginPath()
+        ctx.moveTo(x1, y1)
+        ctx.lineTo(x2, y2)
+        ctx.stroke()
+      }
+
+      // Sweep cone (stepped wedges fade behind the leading edge)
+      const sweepAngle = sweepRef.current
+      const coneAngle = Math.PI / 2 // 90 deg trail
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.rotate(sweepAngle)
+      const steps = 28
+      for (let i = 0; i < steps; i++) {
+        const a0 = (coneAngle * i) / steps
+        const a1 = (coneAngle * (i + 1)) / steps
+        const alpha = 0.55 * Math.pow(1 - i / steps, 1.4)
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.arc(0, 0, R, a0, a1)
+        ctx.closePath()
+        ctx.fillStyle = withAlpha(theme.primary, alpha)
+        ctx.fill()
+      }
+      // Bright leading edge line
+      ctx.beginPath()
+      ctx.moveTo(0, 0)
+      ctx.lineTo(R, 0)
+      ctx.strokeStyle = withAlpha(theme.primary, 0.95)
+      ctx.lineWidth = 2
+      ctx.shadowColor = withAlpha(theme.primary, 0.9)
+      ctx.shadowBlur = 16
+      ctx.stroke()
+      ctx.shadowBlur = 0
+      ctx.restore()
+
+      // Blips
+      const cone = coneAngle
+      for (const b of blipsRef.current) {
+        const bx = cx + Math.cos(b.angle) * b.radius * R
+        const by = cy + Math.sin(b.angle) * b.radius * R
+
+        // angular distance behind the sweep leading edge in [0, 2π)
+        let delta = (sweepAngle - b.angle) % (Math.PI * 2)
+        if (delta < 0) delta += Math.PI * 2
+
+        // brightness curve: bright when freshly painted, fades over the cone trail
+        let intensity: number
+        if (delta <= cone) {
+          intensity = 1 - delta / cone
+        } else {
+          // base low brightness so bubbles never disappear entirely
+          intensity = 0.18
+        }
+
+        // entrance animation
+        const age = now - b.appearedAt
+        const enter = Math.min(1, age / 280)
+        intensity *= 0.25 + 0.75 * enter
+
+        // Hover boost
+        if (hoveredRef.current === b.lecture.id) intensity = Math.max(intensity, 0.85)
+
+        const color = b.marked ? theme.success : theme.primary
+        const baseR = 6
+        const r = baseR * (0.9 + intensity * 0.6)
+
+        // soft glow
+        ctx.beginPath()
+        ctx.arc(bx, by, r * 3.4, 0, Math.PI * 2)
+        ctx.fillStyle = withAlpha(color, 0.25 * intensity)
+        ctx.fill()
+
+        // mid halo
+        ctx.beginPath()
+        ctx.arc(bx, by, r * 1.8, 0, Math.PI * 2)
+        ctx.fillStyle = withAlpha(color, 0.45 * intensity + 0.05)
+        ctx.fill()
+
+        // core dot
+        ctx.beginPath()
+        ctx.arc(bx, by, r, 0, Math.PI * 2)
+        ctx.fillStyle = withAlpha(color, 0.85 + 0.15 * intensity)
+        ctx.shadowColor = withAlpha(color, 0.9 * intensity)
+        ctx.shadowBlur = 18 * intensity
+        ctx.fill()
+        ctx.shadowBlur = 0
+
+        // ring around hovered
+        if (hoveredRef.current === b.lecture.id) {
+          ctx.beginPath()
+          ctx.arc(bx, by, r * 2.4, 0, Math.PI * 2)
+          ctx.strokeStyle = withAlpha(theme.fg, 0.6)
+          ctx.lineWidth = 2
+          ctx.stroke()
+        }
+      }
+
+      // Center node
+      ctx.beginPath()
+      ctx.arc(cx, cy, 5, 0, Math.PI * 2)
+      ctx.fillStyle = withAlpha(theme.primary, 1)
+      ctx.shadowColor = withAlpha(theme.primary, 0.9)
+      ctx.shadowBlur = 14
+      ctx.fill()
+      ctx.shadowBlur = 0
+
+      ctx.beginPath()
+      ctx.arc(cx, cy, 9, 0, Math.PI * 2)
+      ctx.strokeStyle = withAlpha(theme.primary, 0.5)
+      ctx.lineWidth = 1
+      ctx.stroke()
+
+      rafRef.current = requestAnimationFrame(draw)
+    }
+
+    rafRef.current = requestAnimationFrame(draw)
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      ro.disconnect()
+    }
+  }, [])
+
   return (
-    <div className="absolute inset-0 grid place-items-center">
-      {/* Outer glow ring */}
-      <div className="absolute inset-0 rounded-full border border-primary/20 shadow-[inset_0_0_60px_oklch(0.7_0.18_265/0.1)]" />
-      {/* Concentric rings */}
-      <div className="absolute inset-[10%] rounded-full border border-primary/15" />
-      <div className="absolute inset-[25%] rounded-full border border-primary/12" />
-      <div className="absolute inset-[40%] rounded-full border border-primary/10 border-dashed" />
-
-      {/* Cross hairs */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="w-full h-px bg-primary/10" />
-      </div>
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="h-full w-px bg-primary/10" />
-      </div>
-
-      {/* Tick marks at 12, 3, 6, 9 */}
-      {[0, 90, 180, 270].map((deg) => (
-        <div
-          key={deg}
-          className="absolute inset-0 pointer-events-none"
-          style={{ transform: `rotate(${deg}deg)` }}
-        >
-          <div className="absolute top-1 left-1/2 -translate-x-1/2 h-2 w-px bg-primary/40" />
-        </div>
-      ))}
-
-      {/* Rotating sweep */}
-      <div className="absolute inset-0 rounded-full overflow-hidden">
-        <div
-          className="absolute inset-0 animate-radar-rotate origin-center"
-          style={{
-            background:
-              "conic-gradient(from 0deg, oklch(0.7 0.18 265 / 0.55) 0deg, oklch(0.7 0.18 265 / 0.18) 30deg, transparent 70deg, transparent 360deg)",
-            maskImage:
-              "radial-gradient(circle at center, black 0%, black 100%)",
-          }}
-        />
-      </div>
-
-      {/* Inner soft glow */}
-      <div className="absolute inset-[35%] rounded-full bg-primary/10 blur-xl" />
-
-      {/* Bubbles */}
-      {lectures.map(({ lecture, x, y }) => {
-        const marked = markedIds.has(lecture.id)
-        return (
-          <button
-            key={lecture.id}
-            onClick={() => onPick(lecture)}
-            disabled={marked}
-            className="absolute group focus:outline-none"
-            style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)" }}
-          >
-            <span className="relative inline-flex items-center justify-center">
-              <span
-                className={cn(
-                  "absolute inset-0 rounded-full opacity-70 animate-ping",
-                  marked ? "bg-success/60" : "bg-primary/60",
-                )}
-              />
-              <span
-                className={cn(
-                  "absolute -inset-3 rounded-full blur-md",
-                  marked ? "bg-success/30" : "bg-primary/40",
-                )}
-              />
-              <span
-                className={cn(
-                  "relative px-2.5 py-1 rounded-full font-mono text-[10px] tracking-widest uppercase border whitespace-nowrap shadow-lg",
-                  marked
-                    ? "bg-success text-success-foreground border-success/60"
-                    : "bg-primary text-primary-foreground border-primary/60",
-                )}
-              >
-                {lecture.courses.code}
-              </span>
-            </span>
-
-            {/* Tooltip card */}
-            <div className="absolute left-1/2 top-full mt-2 -translate-x-1/2 z-10 w-44 rounded-lg border border-border bg-popover text-popover-foreground p-2 shadow-md opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity pointer-events-none">
-              <p className="text-xs font-semibold truncate">{lecture.courses.name}</p>
-              <p className="text-[11px] text-muted-foreground truncate">
-                {lecture.room ?? "TBA"} • {formatTime(lecture.scheduled_start)}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {marked ? "Already marked" : "Tap to verify"}
-              </p>
-            </div>
-          </button>
-        )
-      })}
-
-      {/* Center node */}
-      <div className="absolute inset-0 grid place-items-center pointer-events-none">
-        <div className="relative">
-          <div className="size-3 rounded-full bg-primary shadow-[0_0_18px_oklch(0.7_0.18_265)] animate-radar-pulse" />
-          <div className="absolute inset-0 rounded-full bg-primary/40 animate-ping" />
-        </div>
-      </div>
-
-      {/* Empty state hint */}
-      {lectures.length === 0 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[11px] font-mono uppercase tracking-widest text-muted-foreground/80 text-center">
-          Searching…
+    <div ref={containerRef} className="absolute inset-0">
+      <canvas ref={canvasRef} className="absolute inset-0" />
+      {blips.length === 0 && (
+        <div className="absolute inset-0 grid place-items-center pointer-events-none">
+          <span className="px-3 py-1 rounded-full bg-foreground text-background text-[10px] font-mono uppercase tracking-widest border-2 border-foreground">
+            No signals · Scanning
+          </span>
         </div>
       )}
     </div>
   )
+}
+
+function withAlpha(color: string, alpha: number): string {
+  // Handles "oklch(L C H)" or "rgba(...)"
+  const a = Math.max(0, Math.min(1, alpha))
+  if (color.startsWith("oklch(")) {
+    return color.replace(/^oklch\(([^)]+)\)$/, (_m, body) => `oklch(${body} / ${a})`)
+  }
+  if (color.startsWith("rgba(")) {
+    return color.replace(/,\s*[\d.]+\)$/, `, ${a})`)
+  }
+  if (color.startsWith("rgb(")) {
+    return color.replace(/^rgb\(([^)]+)\)$/, (_m, body) => `rgba(${body}, ${a})`)
+  }
+  return color
 }

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
+import { AnimatedBackground } from "@/components/animated-bg"
 import "./globals.css"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
@@ -30,6 +31,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable} bg-background`}>
       <body className="font-sans antialiased min-h-screen">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+          <AnimatedBackground />
           {children}
           <Toaster richColors closeButton />
         </ThemeProvider>
