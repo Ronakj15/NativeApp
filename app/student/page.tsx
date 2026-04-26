@@ -220,15 +220,15 @@ export default async function StudentDashboardPage() {
           icon={Bluetooth}
         />
         <ActionCard
-          href="/student/calculator"
+          href="/student/reports?tab=calculator"
           title="Bunk calculator"
           desc="See how many lectures you can skip safely."
           icon={TrendingUp}
         />
         <ActionCard
-          href="/student/heatmap"
-          title="Heatmap"
-          desc="Visualize your attendance patterns."
+          href="/student/reports"
+          title="Reports"
+          desc="History, heatmap and trends in one place."
           icon={CalendarDays}
         />
       </div>
