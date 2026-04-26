@@ -1,12 +1,12 @@
 import Link from "next/link"
-import { Bluetooth, ScanFace, AlertCircle, CalendarDays, TrendingUp, ArrowRight } from "lucide-react"
+import { ScanFace, CalendarDays, TrendingUp, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { createClient } from "@/lib/supabase/server"
 import { formatTime } from "@/lib/utils-format"
-import { LiveLectureBanner } from "@/components/live-lecture-banner"
+import { AttendanceRadar } from "@/components/attendance-radar"
 
 export default async function StudentDashboardPage() {
   const supabase = await createClient()
@@ -33,15 +33,6 @@ export default async function StudentDashboardPage() {
         .gte("scheduled_start", start)
         .lt("scheduled_start", end)
         .order("scheduled_start", { ascending: true })
-    : { data: [] as any[] }
-
-  // Live lectures the student is enrolled in
-  const { data: liveLectures } = courseIds.length
-    ? await supabase
-        .from("lectures")
-        .select("*, courses!inner(name, code)")
-        .in("course_id", courseIds)
-        .eq("status", "live")
     : { data: [] as any[] }
 
   // Attendance stats
@@ -103,9 +94,7 @@ export default async function StudentDashboardPage() {
         </Card>
       )}
 
-      {liveLectures && liveLectures.length > 0 && (
-        <LiveLectureBanner lectures={liveLectures as any[]} />
-      )}
+      <AttendanceRadar faceEnrolled={faceEnrolled} />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -212,13 +201,7 @@ export default async function StudentDashboardPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <ActionCard
-          href="/student/mark"
-          title="Mark attendance"
-          desc="Find a live lecture beacon and verify your face."
-          icon={Bluetooth}
-        />
+      <div className="grid gap-4 md:grid-cols-2">
         <ActionCard
           href="/student/reports?tab=calculator"
           title="Bunk calculator"

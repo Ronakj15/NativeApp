@@ -1,9 +1,19 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Camera, Loader2, CheckCircle2, AlertCircle, Smile, Eye, RotateCcw } from "lucide-react"
+import {
+  Camera,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Smile,
+  Eye,
+  RotateCcw,
+  ScanLine,
+  Cpu,
+  Sparkles,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import { loadFaceApi, eyeAspectRatio } from "@/lib/face-api"
 
@@ -25,7 +35,6 @@ const ALL_STEPS: Record<Action, Step> = {
 
 function pickRandomActions(): Action[] {
   const all: Action[] = ["blink", "smile", "turn_left", "turn_right"]
-  // pick 3 in random order, always include blink
   const set = new Set<Action>(["blink"])
   while (set.size < 3) {
     set.add(all[Math.floor(Math.random() * all.length)])
@@ -60,9 +69,9 @@ export function FaceCheck({
   const [phase, setPhase] = useState<"loading" | "warmup" | "running" | "done" | "error">("loading")
   const [error, setError] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
-  const [statusText, setStatusText] = useState("Loading face models…")
+  const [statusText, setStatusText] = useState("Loading face models")
+  const [faceDetected, setFaceDetected] = useState(false)
 
-  // Action state
   const stateRef = useRef({
     blinks: 0,
     eyesClosed: false,
@@ -78,11 +87,11 @@ export function FaceCheck({
     let cancelled = false
     ;(async () => {
       try {
-        setStatusText("Loading face models…")
+        setStatusText("Loading face models")
         const faceapi = await loadFaceApi()
         if (cancelled) return
 
-        setStatusText("Requesting camera…")
+        setStatusText("Requesting camera")
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user", width: 640, height: 480 },
           audio: false,
@@ -97,8 +106,7 @@ export function FaceCheck({
 
         if (cancelled) return
         setPhase("warmup")
-        setStatusText("Hold still — calibrating…")
-        // Warmup 1.5s to grab baseline yaw & a clean descriptor
+        setStatusText("Calibrating sensors")
         const warmupStart = performance.now()
         startedAtRef.current = warmupStart
 
@@ -121,11 +129,11 @@ export function FaceCheck({
             .withFaceDescriptor()
 
           if (detection) {
+            setFaceDetected(true)
             const box = detection.detection.box
             if (ctx) {
-              ctx.strokeStyle = "#22c55e"
-              ctx.lineWidth = 3
-              ctx.strokeRect(box.x, box.y, box.width, box.height)
+              drawTargetBracket(ctx, box.x, box.y, box.width, box.height)
+              drawLandmarks(ctx, detection.landmarks.positions)
             }
 
             const landmarks = detection.landmarks
@@ -135,10 +143,9 @@ export function FaceCheck({
             const earR = eyeAspectRatio(rightEye)
             const ear = (earL + earR) / 2
 
-            // Yaw approximation: nose x position vs face center x
-            const nose = landmarks.getNose()[3] // tip
+            const nose = landmarks.getNose()[3]
             const faceCenterX = box.x + box.width / 2
-            const yaw = (nose.x - faceCenterX) / box.width // -0.5..0.5
+            const yaw = (nose.x - faceCenterX) / box.width
 
             const s = stateRef.current
             if (!s.haveBaseline && performance.now() - warmupStart > 800) {
@@ -159,7 +166,6 @@ export function FaceCheck({
               const currentAction = actions[stepIndexRef.current]
               const expressions = detection.expressions
 
-              // Blink detection
               if (currentAction === "blink") {
                 const closed = ear < 0.22
                 if (closed && !s.eyesClosed) {
@@ -193,7 +199,10 @@ export function FaceCheck({
               }
             }
           } else {
-            setStatusText("Face not detected — center your face in the frame.")
+            setFaceDetected(false)
+            if (phaseRef.current === "running") {
+              setStatusText("Center your face in the frame")
+            }
           }
 
           rafRef.current = requestAnimationFrame(tick)
@@ -216,7 +225,6 @@ export function FaceCheck({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Mirror state to refs to avoid stale closures
   const stepIndexRef = useRef(stepIndex)
   useEffect(() => {
     stepIndexRef.current = stepIndex
@@ -230,7 +238,6 @@ export function FaceCheck({
     setProgress(0)
     setStepIndex((i) => {
       const next = i + 1
-      // reset per-step counters
       const s = stateRef.current
       s.blinks = 0
       s.smileCount = 0
@@ -258,7 +265,7 @@ export function FaceCheck({
   function finish() {
     if (phaseRef.current === "done") return
     setPhase("done")
-    setStatusText("Verified")
+    setStatusText("Identity confirmed")
     const avg = averageDescriptor(stateRef.current.descriptors)
     if (mode === "verify" && expectedDescriptor && expectedDescriptor.length === avg.length) {
       let sum = 0
@@ -281,70 +288,265 @@ export function FaceCheck({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-foreground/95">
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
-        />
-        <canvas ref={overlayRef} className="absolute inset-0 w-full h-full scale-x-[-1] pointer-events-none" />
+      {/* HUD frame */}
+      <div className="relative rounded-2xl p-[1px] bg-gradient-to-br from-primary/40 via-primary/10 to-transparent">
+        <div className="relative aspect-[4/3] rounded-[15px] overflow-hidden bg-foreground/95">
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+          />
+          <canvas ref={overlayRef} className="absolute inset-0 w-full h-full scale-x-[-1] pointer-events-none" />
 
-        {(phase === "loading" || phase === "warmup") && (
-          <div className="absolute inset-0 grid place-items-center bg-foreground/40 text-background">
-            <div className="flex flex-col items-center gap-2">
-              <Loader2 className="size-6 animate-spin" />
-              <p className="text-sm">{statusText}</p>
+          {/* Subtle gradient vignette */}
+          <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_45%,oklch(0_0_0/0.4)_100%)]" />
+
+          {/* Grid overlay */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-30 mix-blend-screen"
+            style={{
+              backgroundImage:
+                "linear-gradient(oklch(0.7 0.18 265 / 0.4) 1px, transparent 1px), linear-gradient(90deg, oklch(0.7 0.18 265 / 0.4) 1px, transparent 1px)",
+              backgroundSize: "32px 32px",
+              maskImage:
+                "radial-gradient(circle at center, black 30%, transparent 80%)",
+            }}
+          />
+
+          {/* Corner brackets (HUD) */}
+          <CornerBrackets active={faceDetected && phase === "running"} />
+
+          {/* Vertical scan line */}
+          {(phase === "warmup" || phase === "running") && (
+            <div className="absolute inset-x-0 top-0 bottom-0 pointer-events-none overflow-hidden">
+              <div className="absolute inset-x-0 h-12 animate-scan-line bg-gradient-to-b from-transparent via-primary/40 to-transparent shadow-[0_0_20px_oklch(0.7_0.18_265/0.6)]" />
+            </div>
+          )}
+
+          {/* Top HUD strip */}
+          <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
+            <div className="flex items-center gap-2 bg-background/70 backdrop-blur-md rounded-full px-2.5 py-1 border border-primary/30 shadow-[0_0_15px_oklch(0.7_0.18_265/0.3)]">
+              <span className="size-1.5 rounded-full bg-primary animate-radar-pulse shadow-[0_0_8px_oklch(0.7_0.18_265)]" />
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-foreground">
+                {mode === "enroll" ? "Enrollment" : "Auth"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 bg-background/70 backdrop-blur-md rounded-full px-2.5 py-1 border border-border">
+              <Cpu className="size-3 text-primary" />
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-foreground">
+                {phase === "loading"
+                  ? "Booting"
+                  : phase === "warmup"
+                    ? "Calibrating"
+                    : phase === "running"
+                      ? faceDetected
+                        ? "Tracking"
+                        : "Searching"
+                      : phase === "done"
+                        ? "Verified"
+                        : "Error"}
+              </span>
             </div>
           </div>
-        )}
 
-        {phase === "running" && currentStep && (
-          <div className="absolute top-3 left-3 right-3 flex items-center gap-2 bg-background/90 backdrop-blur rounded-lg px-3 py-2 border border-border">
-            {Icon ? <Icon className="size-4 text-primary" /> : null}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{currentStep.label}</p>
-              <p className="text-xs text-muted-foreground truncate">{currentStep.hint}</p>
+          {/* Step prompt */}
+          {phase === "running" && currentStep && (
+            <div className="absolute bottom-3 left-3 right-3 flex items-center gap-3 bg-background/80 backdrop-blur-md rounded-xl px-3 py-2 border border-primary/30 shadow-[0_0_20px_oklch(0.7_0.18_265/0.25)]">
+              <div className="size-9 rounded-lg bg-primary/15 text-primary grid place-items-center shrink-0 animate-float-y border border-primary/30">
+                {Icon ? <Icon className="size-4" /> : null}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{currentStep.label}</p>
+                <p className="text-[11px] text-muted-foreground truncate font-mono uppercase tracking-wider">
+                  {currentStep.hint}
+                </p>
+              </div>
+              <ProgressArc value={progress} />
+              <div className="flex flex-col items-center gap-1 shrink-0">
+                <div className="flex gap-1">
+                  {actions.map((_, i) => (
+                    <span
+                      key={i}
+                      className={cn(
+                        "size-1.5 rounded-full transition-colors",
+                        i < stepIndex
+                          ? "bg-success"
+                          : i === stepIndex
+                            ? "bg-primary animate-radar-pulse"
+                            : "bg-border",
+                      )}
+                    />
+                  ))}
+                </div>
+                <span className="text-[9px] font-mono tabular-nums text-muted-foreground">
+                  {stepIndex + 1}/{actions.length}
+                </span>
+              </div>
             </div>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {stepIndex + 1}/{actions.length}
-            </span>
-          </div>
-        )}
+          )}
 
-        {phase === "done" && (
-          <div className="absolute inset-0 grid place-items-center bg-success/30 text-background">
-            <div className="flex flex-col items-center gap-2 bg-success rounded-xl px-5 py-4">
-              <CheckCircle2 className="size-8" />
-              <p className="text-sm font-medium">Verified</p>
+          {/* Loading / warmup overlay */}
+          {(phase === "loading" || phase === "warmup") && (
+            <div className="absolute inset-0 grid place-items-center bg-foreground/40 backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-3 px-5 py-4 rounded-xl border border-primary/30 bg-background/80 shadow-[0_0_30px_oklch(0.7_0.18_265/0.3)]">
+                <div className="relative">
+                  <Loader2 className="size-7 animate-spin text-primary" />
+                  <div className="absolute inset-0 size-7 rounded-full bg-primary/30 blur-md" />
+                </div>
+                <p className="text-sm font-mono uppercase tracking-[0.18em] text-foreground">{statusText}</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {phase === "error" && (
-          <div className="absolute inset-0 grid place-items-center bg-foreground/60 text-background p-4">
-            <div className="flex flex-col items-center gap-2 bg-destructive rounded-xl px-5 py-4 text-center max-w-sm">
-              <AlertCircle className="size-6" />
-              <p className="text-sm font-medium">Check failed</p>
-              <p className="text-xs opacity-90">{error}</p>
+          {/* Success overlay */}
+          {phase === "done" && (
+            <div className="absolute inset-0 grid place-items-center bg-success/25 backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-2 bg-success rounded-2xl px-6 py-4 text-success-foreground border-2 border-success-foreground/30 shadow-[0_0_40px_oklch(0.65_0.16_160/0.7)]">
+                <div className="relative">
+                  <CheckCircle2 className="size-9" />
+                  <Sparkles className="size-4 absolute -top-1 -right-1 animate-radar-pulse" />
+                </div>
+                <p className="text-sm font-semibold tracking-wide">Identity Verified</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Error overlay */}
+          {phase === "error" && (
+            <div className="absolute inset-0 grid place-items-center bg-foreground/60 backdrop-blur-sm p-4">
+              <div className="flex flex-col items-center gap-2 bg-destructive rounded-xl px-5 py-4 text-destructive-foreground text-center max-w-sm border border-destructive-foreground/20">
+                <AlertCircle className="size-7" />
+                <p className="text-sm font-semibold">Verification Failed</p>
+                <p className="text-xs opacity-90 font-mono">{error}</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {phase === "running" && <Progress value={progress} className="h-2" />}
-
-      <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <Camera className="size-4" />
-          <span>{phase === "running" ? statusText || "Follow the prompt above." : statusText}</span>
+      {/* Footer info */}
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 text-muted-foreground font-mono uppercase tracking-wider">
+          <ScanLine className="size-3.5 text-primary" />
+          <span>{phase === "running" ? statusText || "Hold steady — follow the prompt" : statusText}</span>
         </div>
-        {onCancel && phase !== "done" && (
-          <Button variant="ghost" size="sm" onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Camera className="size-3.5" />
+            <span className="font-mono">on-device</span>
+          </div>
+          {onCancel && phase !== "done" && (
+            <Button variant="ghost" size="sm" onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )
+}
+
+function CornerBrackets({ active }: { active: boolean }) {
+  const color = active ? "border-success shadow-[0_0_18px_oklch(0.65_0.16_160/0.8)]" : "border-primary/70"
+  const padding = "inset-6 md:inset-10"
+  return (
+    <div className={cn("absolute pointer-events-none transition-colors", padding)}>
+      {/* TL */}
+      <span className={cn("absolute top-0 left-0 size-6 border-t-2 border-l-2 rounded-tl-md", color)} />
+      {/* TR */}
+      <span className={cn("absolute top-0 right-0 size-6 border-t-2 border-r-2 rounded-tr-md", color)} />
+      {/* BL */}
+      <span className={cn("absolute bottom-0 left-0 size-6 border-b-2 border-l-2 rounded-bl-md", color)} />
+      {/* BR */}
+      <span className={cn("absolute bottom-0 right-0 size-6 border-b-2 border-r-2 rounded-br-md", color)} />
+    </div>
+  )
+}
+
+function ProgressArc({ value }: { value: number }) {
+  const r = 14
+  const c = 2 * Math.PI * r
+  const offset = c - (Math.max(0, Math.min(100, value)) / 100) * c
+  return (
+    <svg width="36" height="36" viewBox="0 0 36 36" className="shrink-0">
+      <circle cx="18" cy="18" r={r} stroke="oklch(0.7 0.18 265 / 0.18)" strokeWidth="3" fill="none" />
+      <circle
+        cx="18"
+        cy="18"
+        r={r}
+        stroke="oklch(0.7 0.18 265)"
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+        strokeDasharray={c}
+        strokeDashoffset={offset}
+        transform="rotate(-90 18 18)"
+        style={{ filter: "drop-shadow(0 0 4px oklch(0.7 0.18 265 / 0.7))", transition: "stroke-dashoffset 200ms linear" }}
+      />
+      <text
+        x="18"
+        y="22"
+        textAnchor="middle"
+        fontSize="10"
+        fontFamily="ui-monospace, monospace"
+        fill="oklch(0.7 0.18 265)"
+      >
+        {Math.round(value)}
+      </text>
+    </svg>
+  )
+}
+
+function drawTargetBracket(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+) {
+  const len = Math.min(w, h) * 0.18
+  ctx.save()
+  ctx.strokeStyle = "oklch(0.65 0.16 160)"
+  ctx.lineWidth = 3
+  ctx.shadowColor = "oklch(0.65 0.16 160 / 0.7)"
+  ctx.shadowBlur = 10
+  // top-left
+  ctx.beginPath()
+  ctx.moveTo(x, y + len)
+  ctx.lineTo(x, y)
+  ctx.lineTo(x + len, y)
+  ctx.stroke()
+  // top-right
+  ctx.beginPath()
+  ctx.moveTo(x + w - len, y)
+  ctx.lineTo(x + w, y)
+  ctx.lineTo(x + w, y + len)
+  ctx.stroke()
+  // bottom-left
+  ctx.beginPath()
+  ctx.moveTo(x, y + h - len)
+  ctx.lineTo(x, y + h)
+  ctx.lineTo(x + len, y + h)
+  ctx.stroke()
+  // bottom-right
+  ctx.beginPath()
+  ctx.moveTo(x + w - len, y + h)
+  ctx.lineTo(x + w, y + h)
+  ctx.lineTo(x + w, y + h - len)
+  ctx.stroke()
+  ctx.restore()
+}
+
+function drawLandmarks(ctx: CanvasRenderingContext2D, points: { x: number; y: number }[]) {
+  ctx.save()
+  ctx.fillStyle = "oklch(0.7 0.18 265 / 0.85)"
+  ctx.shadowColor = "oklch(0.7 0.18 265 / 0.6)"
+  ctx.shadowBlur = 4
+  for (const p of points) {
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
 }

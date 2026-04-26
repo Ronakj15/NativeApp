@@ -6,7 +6,6 @@ import { useState, useTransition } from "react"
 import {
   ScanFace,
   LayoutDashboard,
-  Bluetooth,
   CalendarDays,
   FileBarChart2,
   Bell,
@@ -31,7 +30,6 @@ type NavItem = { href: string; label: string; icon: React.ComponentType<{ classN
 
 const STUDENT_NAV: NavItem[] = [
   { href: "/student", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/student/mark", label: "Mark attendance", icon: Bluetooth },
   { href: "/student/reports", label: "Reports", icon: FileBarChart2 },
   { href: "/student/timetable", label: "Timetable", icon: CalendarDays },
   { href: "/student/notifications", label: "Notifications", icon: Bell },
