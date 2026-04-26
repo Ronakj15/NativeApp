@@ -71,7 +71,9 @@ export default function EnrollFacePage() {
             <div>
               <CardTitle>Face enrollment</CardTitle>
               <CardDescription>
-                {enrolled ? "You&apos;re already enrolled. Re-enroll to update your face descriptor." : "Follow the on-screen prompts."}
+                {enrolled
+                  ? "You're already enrolled. Re-enroll to update your face descriptor."
+                  : "Follow the on-screen prompts."}
               </CardDescription>
             </div>
           </div>

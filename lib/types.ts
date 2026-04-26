@@ -16,6 +16,8 @@ export type Profile = {
   department: string | null
   avatar_url: string | null
   phone: string | null
+  face_descriptor: number[] | null
+  face_enrolled_at: string | null
   created_at: string
   updated_at: string
 }

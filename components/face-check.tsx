@@ -122,9 +122,11 @@ export function FaceCheck({
 
           if (detection) {
             const box = detection.detection.box
-            ctx?.strokeStyle && ((ctx as CanvasRenderingContext2D).strokeStyle = "#22c55e")
-            ;(ctx as CanvasRenderingContext2D).lineWidth = 3
-            ctx?.strokeRect(box.x, box.y, box.width, box.height)
+            if (ctx) {
+              ctx.strokeStyle = "#22c55e"
+              ctx.lineWidth = 3
+              ctx.strokeRect(box.x, box.y, box.width, box.height)
+            }
 
             const landmarks = detection.landmarks
             const leftEye = landmarks.getLeftEye()
