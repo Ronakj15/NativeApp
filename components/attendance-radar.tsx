@@ -198,13 +198,22 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
   }
 
   return (
-    <div className="glass brutal rounded-3xl overflow-hidden text-foreground">
-      <div className="relative px-5 py-6 md:px-8 md:py-8">
+    <div className="relative glass brutal-lg rounded-3xl overflow-hidden text-foreground">
+      {/* brutalist sticker tag */}
+      <span className="absolute -top-3 left-6 z-10 inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--foreground)]">
+        <span className="size-1.5 rounded-full bg-foreground animate-radar-pulse" />
+        Live Scan
+      </span>
+      <span className="absolute -top-3 right-6 z-10 inline-block rounded-md bg-foreground text-background border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--primary)]">
+        v0.1
+      </span>
+
+      <div className="relative px-5 py-7 md:px-8 md:py-8">
         {/* HUD top bar */}
         <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest">
           <div className="flex items-center gap-2">
-            <span className="size-2 rounded-full bg-primary animate-radar-pulse shadow-[0_0_10px_oklch(0.7_0.18_265)]" />
-            <span className="text-foreground">Beacon Scan</span>
+            <span className="size-2 rounded-full bg-primary animate-radar-pulse" />
+            <span className="text-foreground font-bold">Beacon Scan</span>
           </div>
           <div className="hidden sm:flex items-center gap-2 text-muted-foreground">
             <Activity className="size-3" />
