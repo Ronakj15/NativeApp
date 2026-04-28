@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createClient } from "@/lib/supabase/client"
 
 export default function LoginPage() {
   const router = useRouter()
+  const [role, setRole] = useState<"student" | "faculty">("student")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -22,12 +24,28 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setError(error.message)
       setLoading(false)
       return
     }
+
+    if (authData?.user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", authData.user.id)
+        .single()
+
+      if (profile?.role !== role && profile?.role !== "admin") {
+        await supabase.auth.signOut()
+        setError(`Access denied: This account is not a ${role}.`)
+        setLoading(false)
+        return
+      }
+    }
+
     router.push("/post-signin")
     router.refresh()
   }
@@ -47,6 +65,12 @@ export default function LoginPage() {
             <CardDescription>Sign in to mark or manage attendance.</CardDescription>
           </CardHeader>
           <CardContent>
+            <Tabs value={role} onValueChange={(v) => setRole(v as "student" | "faculty")} className="mb-4">
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="student">Student</TabsTrigger>
+                <TabsTrigger value="faculty">Faculty</TabsTrigger>
+              </TabsList>
+            </Tabs>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>

@@ -200,7 +200,7 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
   }
 
   async function scanForBeacon(lectureId: string) {
-    if (!navigator.bluetooth) {
+    if (!(navigator as any).bluetooth) {
       toast.error("Web Bluetooth is not supported in your browser.")
       return
     }
@@ -212,7 +212,7 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
         return
       }
 
-      const device = await navigator.bluetooth.requestDevice({
+      const device = await (navigator as any).bluetooth.requestDevice({
         filters: [{ namePrefix: targetLecture.beacon_id }],
       })
       toast.success(`Found beacon: ${device.name || 'Unknown device'}`)
@@ -227,11 +227,11 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
   return (
     <div className="relative glass brutal-lg rounded-3xl overflow-hidden text-foreground">
       {/* brutalist sticker tag */}
-      <span className="absolute -top-3 left-6 z-10 inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--foreground)]">
+      <span className="absolute top-4 left-6 z-10 inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--foreground)]">
         <span className="size-1.5 rounded-full bg-foreground animate-radar-pulse" />
         Live Scan
       </span>
-      <span className="absolute -top-3 right-6 z-10 inline-block rounded-md bg-foreground text-background border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--primary)]">
+      <span className="absolute top-4 right-6 z-10 inline-block rounded-md bg-foreground text-background border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--primary)]">
         v0.1
       </span>
 
