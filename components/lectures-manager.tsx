@@ -94,7 +94,7 @@ export function LecturesManager({ lectures, courses }: { lectures: LectureRow[];
       .update({ status: "live", beacon_id: beaconId, started_at: new Date().toISOString() })
       .eq("id", id)
     if (error) toast.error("Could not start lecture", { description: error.message })
-    else toast.success("Lecture is live. Please ensure your physical BLE beacon or native broadcaster app is active.")
+    else toast.success("Lecture is live — beacon broadcasting")
     setBusyId(null)
     router.refresh()
   }
