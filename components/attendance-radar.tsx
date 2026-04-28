@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   Radio,
+  Bluetooth,
   ScanFace,
   Loader2,
   CheckCircle2,
@@ -63,6 +64,7 @@ type Blip = {
 export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
   const [lectures, setLectures] = useState<LiveLecture[]>([])
   const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(null)
+  const [scanningBle, setScanningBle] = useState(false)
   const [markedIds, setMarkedIds] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<LiveLecture | null>(null)
   const [saving, setSaving] = useState(false)
@@ -197,14 +199,39 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
     setSelected(unmarkedLectures[0])
   }
 
+  async function scanForBeacon(lectureId: string) {
+    if (!(navigator as any).bluetooth) {
+      toast.error("Web Bluetooth is not supported in your browser.")
+      return
+    }
+    setScanningBle(true)
+    try {
+      const targetLecture = lectures.find((l) => l.id === lectureId)
+      if (!targetLecture || !targetLecture.beacon_id) {
+        toast.error("No valid beacon ID found for this lecture.")
+        return
+      }
+
+      const device = await (navigator as any).bluetooth.requestDevice({
+        filters: [{ namePrefix: targetLecture.beacon_id }],
+      })
+      toast.success(`Found beacon: ${device.name || 'Unknown device'}`)
+      setSelected(lectures.find((l) => l.id === lectureId) || null)
+    } catch (err: any) {
+      toast.error("Bluetooth scan failed", { description: err.message })
+    } finally {
+      setScanningBle(false)
+    }
+  }
+
   return (
     <div className="relative glass brutal-lg rounded-3xl overflow-hidden text-foreground">
       {/* brutalist sticker tag */}
-      <span className="absolute -top-3 left-6 z-10 inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--foreground)]">
+      <span className="absolute top-4 left-6 z-10 inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--foreground)]">
         <span className="size-1.5 rounded-full bg-foreground animate-radar-pulse" />
         Live Scan
       </span>
-      <span className="absolute -top-3 right-6 z-10 inline-block rounded-md bg-foreground text-background border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--primary)]">
+      <span className="absolute top-4 right-6 z-10 inline-block rounded-md bg-foreground text-background border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--primary)]">
         v0.1
       </span>
 
@@ -235,13 +262,13 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
               return (
                 <button
                   key={b.lecture.id}
-                  onClick={() => {
+                  onClick={async () => {
                     if (b.marked) return
                     if (!faceEnrolled) {
                       toast.error("Enroll your face first to mark attendance.")
                       return
                     }
-                    setSelected(b.lecture)
+                    await scanForBeacon(b.lecture.id)
                   }}
                   onMouseEnter={() => setHovered(b.lecture.id)}
                   onMouseLeave={() => setHovered(null)}
@@ -320,29 +347,33 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
           ) : (
             <Button
               size="lg"
-              onClick={openVerify}
-              disabled={!hasActionable || saving}
+              onClick={async () => {
+                const unmarkedLectures = lectures.filter((l) => !markedIds.has(l.id))
+                if (unmarkedLectures.length === 0) return
+                await scanForBeacon(unmarkedLectures[0].id)
+              }}
+              disabled={!hasActionable || saving || scanningBle}
               className={cn(
                 "brutal brutal-lift min-w-60 h-12 text-base font-bold tracking-wide rounded-xl",
                 hasActionable
                   ? "bg-primary text-primary-foreground hover:bg-primary"
-                  : "bg-secondary text-muted-foreground hover:bg-secondary opacity-70",
+                  : "opacity-50",
               )}
             >
-              {saving ? (
+              {scanningBle ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Saving…
+                  <Loader2 className="size-5 animate-spin" />
+                  Scanning BLE...
                 </>
               ) : hasActionable ? (
                 <>
-                  <ScanFace className="size-4" />
-                  Mark attendance
+                  <Bluetooth className="size-5 animate-pulse" />
+                  Scan & Verify Face
                 </>
               ) : (
                 <>
-                  <Radio className="size-4" />
-                  No live beacons
+                  <Radio className="size-5" />
+                  No signals found
                 </>
               )}
             </Button>
