@@ -220,3 +220,11 @@ export default function SignUpPage() {
     </main>
   )
 }
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SignUpForm />
+    </Suspense>
+  )
+}
