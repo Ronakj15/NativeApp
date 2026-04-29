@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   Radio,
+  Bluetooth,
   ScanFace,
   Loader2,
   CheckCircle2,
@@ -63,6 +64,7 @@ type Blip = {
 export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
   const [lectures, setLectures] = useState<LiveLecture[]>([])
   const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(null)
+  const [scanningBle, setScanningBle] = useState(false)
   const [markedIds, setMarkedIds] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<LiveLecture | null>(null)
   const [saving, setSaving] = useState(false)
@@ -260,13 +262,13 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
               return (
                 <button
                   key={b.lecture.id}
-                  onClick={() => {
+                  onClick={async () => {
                     if (b.marked) return
                     if (!faceEnrolled) {
                       toast.error("Enroll your face first to mark attendance.")
                       return
                     }
-                    setSelected(b.lecture)
+                    await scanForBeacon(b.lecture.id)
                   }}
                   onMouseEnter={() => setHovered(b.lecture.id)}
                   onMouseLeave={() => setHovered(null)}
@@ -345,29 +347,33 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
           ) : (
             <Button
               size="lg"
-              onClick={openVerify}
-              disabled={!hasActionable || saving}
+              onClick={async () => {
+                const unmarkedLectures = lectures.filter((l) => !markedIds.has(l.id))
+                if (unmarkedLectures.length === 0) return
+                await scanForBeacon(unmarkedLectures[0].id)
+              }}
+              disabled={!hasActionable || saving || scanningBle}
               className={cn(
                 "brutal brutal-lift min-w-60 h-12 text-base font-bold tracking-wide rounded-xl",
                 hasActionable
                   ? "bg-primary text-primary-foreground hover:bg-primary"
-                  : "bg-secondary text-muted-foreground hover:bg-secondary opacity-70",
+                  : "opacity-50",
               )}
             >
-              {saving ? (
+              {scanningBle ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Saving…
+                  <Loader2 className="size-5 animate-spin" />
+                  Scanning BLE...
                 </>
               ) : hasActionable ? (
                 <>
-                  <ScanFace className="size-4" />
-                  Mark attendance
+                  <Bluetooth className="size-5 animate-pulse" />
+                  Scan & Verify Face
                 </>
               ) : (
                 <>
-                  <Radio className="size-4" />
-                  No live beacons
+                  <Radio className="size-5" />
+                  No signals found
                 </>
               )}
             </Button>
