@@ -75,7 +75,7 @@ export function LiveLectureRoster({
         { event: "*", schema: "public", table: "attendance", filter: `lecture_id=eq.${lectureId}` },
         async () => {
           // refetch attendance for this lecture
-          const { data: attendance } = await supabase.from("attendance").select("*").eq("lecture_id", lectureId)
+          const { data: attendance } = await supabase.from("attendance").select("id, student_id, status, method, marked_at").eq("lecture_id", lectureId)
           if (!attendance) return
           const map = new Map(attendance.map((a) => [a.student_id, a]))
           setRoster((prev) =>
