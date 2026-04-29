@@ -43,9 +43,32 @@ export default async function StudentDashboardPage() {
 
   const totals = {
     total: attendance?.length ?? 0,
-    present: attendance?.filter((a) => a.status === "present").length ?? 0,
-    late: attendance?.filter((a) => a.status === "late").length ?? 0,
-    absent: attendance?.filter((a) => a.status === "absent").length ?? 0,
+    present: 0,
+    late: 0,
+    absent: 0,
+  }
+
+  const courseCounts = new Map()
+
+  if (attendance) {
+    for (const a of attendance) {
+      if (a.status === "present") totals.present++
+      else if (a.status === "late") totals.late++
+      else if (a.status === "absent") totals.absent++
+
+      const cId = a.lectures?.course_id
+      if (cId != null) {
+        let counts = courseCounts.get(cId)
+        if (!counts) {
+          counts = { present: 0, total: 0 }
+          courseCounts.set(cId, counts)
+        }
+        counts.total++
+        if (a.status === "present" || a.status === "late") {
+          counts.present++
+        }
+      }
+    }
   }
   const overallPct = totals.total ? Math.round(((totals.present + totals.late) / totals.total) * 100) : 0
 
@@ -55,11 +78,9 @@ export default async function StudentDashboardPage() {
     : { data: [] as any[] }
 
   const courseStats = (courses ?? []).map((c) => {
-    const list = (attendance ?? []).filter((a: any) => a.lectures?.course_id === c.id)
-    const present = list.filter((a) => a.status === "present" || a.status === "late").length
-    const total = list.length
-    const pct = total ? Math.round((present / total) * 100) : 0
-    return { course: c, present, total, pct }
+    const counts = courseCounts.get(c.id) || { present: 0, total: 0 }
+    const pct = counts.total ? Math.round((counts.present / counts.total) * 100) : 0
+    return { course: c, present: counts.present, total: counts.total, pct }
   })
 
   const faceEnrolled = !!profile?.face_descriptor

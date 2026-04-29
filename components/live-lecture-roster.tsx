@@ -42,12 +42,26 @@ export function LiveLectureRoster({
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const summary = useMemo(() => {
-    const total = roster.length
-    const present = roster.filter((r) => r.record?.status === "present").length
-    const late = roster.filter((r) => r.record?.status === "late").length
-    const absent = roster.filter((r) => r.record?.status === "absent").length
-    const unmarked = roster.filter((r) => !r.record).length
-    return { total, present, late, absent, unmarked }
+    const stats = {
+      total: roster.length,
+      present: 0,
+      late: 0,
+      absent: 0,
+      unmarked: 0,
+    }
+
+    for (const r of roster) {
+      if (!r.record) {
+        stats.unmarked++
+      } else {
+        const status = r.record.status
+        if (status === "present") stats.present++
+        else if (status === "late") stats.late++
+        else if (status === "absent") stats.absent++
+      }
+    }
+
+    return stats
   }, [roster])
 
   // Realtime subscription for live updates
@@ -61,7 +75,7 @@ export function LiveLectureRoster({
         { event: "*", schema: "public", table: "attendance", filter: `lecture_id=eq.${lectureId}` },
         async () => {
           // refetch attendance for this lecture
-          const { data: attendance } = await supabase.from("attendance").select("*").eq("lecture_id", lectureId)
+          const { data: attendance } = await supabase.from("attendance").select("id, student_id, status, method, marked_at").eq("lecture_id", lectureId)
           if (!attendance) return
           const map = new Map(attendance.map((a) => [a.student_id, a]))
           setRoster((prev) =>
