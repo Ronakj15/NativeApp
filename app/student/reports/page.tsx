@@ -24,9 +24,15 @@ export default async function ReportsPage() {
     .limit(200)
 
   const total = attendance?.length ?? 0
-  const present = attendance?.filter((a) => a.status === "present").length ?? 0
-  const late = attendance?.filter((a) => a.status === "late").length ?? 0
-  const absent = attendance?.filter((a) => a.status === "absent").length ?? 0
+  let present = 0
+  let late = 0
+  let absent = 0
+  for (let i = 0; i < total; i++) {
+    const status = attendance![i].status
+    if (status === "present") present++
+    else if (status === "late") late++
+    else if (status === "absent") absent++
+  }
 
   // ----- Heatmap cells
   const days = new Map<string, { present: number; total: number }>()
