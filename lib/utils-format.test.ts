@@ -1,13 +1,14 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { formatDate, formatTime, formatDateTime, pct, DAYS } from './utils-format'
 
 describe('utils-format', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('formatDate', () => {
     it('should format a string date using Date.prototype.toLocaleDateString with correct options', () => {
-      const toLocaleDateStringSpy = jest.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('mocked-date')
+      const toLocaleDateStringSpy = vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('mocked-date')
       const result = formatDate('2023-10-15T12:00:00Z')
 
       expect(toLocaleDateStringSpy).toHaveBeenCalledWith(undefined, { weekday: "short", month: "short", day: "numeric" })
@@ -17,7 +18,7 @@ describe('utils-format', () => {
     })
 
     it('should format a Date object using Date.prototype.toLocaleDateString with correct options', () => {
-      const toLocaleDateStringSpy = jest.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('mocked-date-obj')
+      const toLocaleDateStringSpy = vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('mocked-date-obj')
       const date = new Date('2023-10-15T12:00:00Z')
       const result = formatDate(date)
 
@@ -30,7 +31,7 @@ describe('utils-format', () => {
 
   describe('formatTime', () => {
     it('should format a string time using Date.prototype.toLocaleTimeString with correct options', () => {
-      const toLocaleTimeStringSpy = jest.spyOn(Date.prototype, 'toLocaleTimeString').mockReturnValue('mocked-time')
+      const toLocaleTimeStringSpy = vi.spyOn(Date.prototype, 'toLocaleTimeString').mockReturnValue('mocked-time')
       const result = formatTime('2023-10-15T14:30:00Z')
 
       expect(toLocaleTimeStringSpy).toHaveBeenCalledWith(undefined, { hour: "numeric", minute: "2-digit" })
@@ -40,7 +41,7 @@ describe('utils-format', () => {
     })
 
     it('should format a Date object time using Date.prototype.toLocaleTimeString with correct options', () => {
-      const toLocaleTimeStringSpy = jest.spyOn(Date.prototype, 'toLocaleTimeString').mockReturnValue('mocked-time-obj')
+      const toLocaleTimeStringSpy = vi.spyOn(Date.prototype, 'toLocaleTimeString').mockReturnValue('mocked-time-obj')
       const date = new Date('2023-10-15T14:30:00Z')
       const result = formatTime(date)
 
@@ -53,8 +54,8 @@ describe('utils-format', () => {
 
   describe('formatDateTime', () => {
     it('should combine formatDate and formatTime with a bullet separator', () => {
-      const toLocaleDateStringSpy = jest.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('mock-date')
-      const toLocaleTimeStringSpy = jest.spyOn(Date.prototype, 'toLocaleTimeString').mockReturnValue('mock-time')
+      const toLocaleDateStringSpy = vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('mock-date')
+      const toLocaleTimeStringSpy = vi.spyOn(Date.prototype, 'toLocaleTimeString').mockReturnValue('mock-time')
 
       const dateStr = '2023-10-15T14:30:00Z'
       const result = formatDateTime(dateStr)
