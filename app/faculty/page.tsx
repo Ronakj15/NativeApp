@@ -19,10 +19,11 @@ export default async function FacultyDashboardPage() {
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString()
 
   const { data: myCourses } = await supabase.from("courses").select("*").eq("faculty_id", user.id)
+  const courseIds = (myCourses ?? []).map((c) => c.id)
   const { count: studentCount } = await supabase
     .from("enrollments")
     .select("student_id", { count: "exact", head: true })
-    .in("course_id", (myCourses ?? []).map((c) => c.id).length ? (myCourses ?? []).map((c) => c.id) : ["00000000-0000-0000-0000-000000000000"])
+    .in("course_id", courseIds.length ? courseIds : ["00000000-0000-0000-0000-000000000000"])
 
   const { data: todayLectures } = await supabase
     .from("lectures")
@@ -39,7 +40,6 @@ export default async function FacultyDashboardPage() {
     .eq("status", "live")
 
   // Aggregate attendance for analytics ribbon
-  const courseIds = (myCourses ?? []).map((c) => c.id)
   const { data: attendanceRows } = courseIds.length
     ? await supabase
         .from("attendance")
