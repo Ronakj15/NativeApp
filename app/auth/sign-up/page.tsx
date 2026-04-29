@@ -14,7 +14,17 @@ import { createClient } from "@/lib/supabase/client"
 
 type Role = "student" | "faculty"
 
-function SignUpForm() {
+import { Suspense } from 'react';
+
+export default function SignUpPage() {
+  return (
+    <Suspense>
+      <SignUpContent />
+    </Suspense>
+  );
+}
+
+function SignUpContent() {
   const router = useRouter()
   const params = useSearchParams()
   const initial = (params.get("role") as Role) || "student"
