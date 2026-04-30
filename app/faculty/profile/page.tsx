@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { ProfileForm } from "@/components/profile-form"
+import { NotificationPreferencesForm } from "@/components/notification-preferences-form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
@@ -39,6 +40,8 @@ export default async function FacultyProfilePage() {
           <ProfileForm profile={profile} role="faculty" />
         </CardContent>
       </Card>
+
+      <NotificationPreferencesForm profile={profile} />
     </div>
   )
 }

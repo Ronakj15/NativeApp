@@ -17,6 +17,9 @@ export type Profile = {
   phone: string | null
   face_descriptor: number[] | null
   face_enrolled_at: string | null
+  notif_sound: boolean
+  notif_lectures: boolean
+  notif_attendance: boolean
   created_at: string
   updated_at: string
 }

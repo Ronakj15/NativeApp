@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { ScanFace, CheckCircle2, AlertCircle } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { ProfileForm } from "@/components/profile-form"
+import { NotificationPreferencesForm } from "@/components/notification-preferences-form"
 import { formatDateTime } from "@/lib/utils-format"
 
 export default async function StudentProfilePage() {
@@ -61,6 +62,8 @@ export default async function StudentProfilePage() {
           </Button>
         </CardContent>
       </Card>
+
+      <NotificationPreferencesForm profile={profile} />
     </div>
   )
 }

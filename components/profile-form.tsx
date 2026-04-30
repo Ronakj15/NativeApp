@@ -25,6 +25,7 @@ export function ProfileForm({ profile, role }: { profile: Profile; role: "studen
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url ?? "")
   const [saving, setSaving] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {

@@ -15,6 +15,7 @@ import {
   Presentation,
   Users,
   BarChart3,
+  Send,
   Sun,
   Moon,
   X,
@@ -41,6 +42,7 @@ const FACULTY_NAV: NavItem[] = [
   { href: "/faculty/lectures", label: "Lectures", icon: Presentation },
   { href: "/faculty/students", label: "Students", icon: Users },
   { href: "/faculty/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/faculty/notifications", label: "Notifications", icon: Send },
   { href: "/faculty/profile", label: "Profile", icon: UserRound },
 ]
 

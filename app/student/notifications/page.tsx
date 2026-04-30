@@ -3,6 +3,7 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/u
 import { createClient } from "@/lib/supabase/server"
 import { formatDateTime } from "@/lib/utils-format"
 import { NotificationActions } from "@/components/notification-actions"
+import { PushManager } from "@/components/push-manager"
 import { Bell, AlertTriangle, Info, CheckCircle2 } from "lucide-react"
 
 export default async function NotificationsPage() {
@@ -25,7 +26,10 @@ export default async function NotificationsPage() {
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Notifications</h1>
           <p className="text-muted-foreground">Updates from your faculty and the system.</p>
         </div>
-        <NotificationActions />
+        <div className="flex items-center gap-2">
+          <PushManager />
+          <NotificationActions />
+        </div>
       </div>
 
       <Card>

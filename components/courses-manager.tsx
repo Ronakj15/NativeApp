@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Loader2, Trash2 } from "lucide-react"
+import { Plus, Loader2, Trash2, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,8 +33,31 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
   const [planned, setPlanned] = useState("60")
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null)
 
-  async function createCourse(e: React.FormEvent) {
+  function openCreateDialog() {
+    setEditingCourseId(null)
+    setName("")
+    setCode("")
+    setDivision("A")
+    setYear("1")
+    setDepartment("CS")
+    setPlanned("60")
+    setOpen(true)
+  }
+
+  function openEditDialog(c: Course) {
+    setEditingCourseId(c.id)
+    setName(c.name)
+    setCode(c.code)
+    setDivision(c.division ?? "A")
+    setYear(c.year ? String(c.year) : "1")
+    setDepartment(c.department ?? "CS")
+    setPlanned(String(c.total_lectures_planned))
+    setOpen(true)
+  }
+
+  async function saveCourse(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     const supabase = createClient()
@@ -42,7 +65,7 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return
-    const { error } = await supabase.from("courses").insert({
+    const payload = {
       name,
       code,
       faculty_id: user.id,
@@ -50,17 +73,25 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
       year: Number(year),
       department,
       total_lectures_planned: Number(planned) || 60,
-    })
+    }
+
+    let error
+    if (editingCourseId) {
+      const { error: updateError } = await supabase.from("courses").update(payload).eq("id", editingCourseId)
+      error = updateError
+    } else {
+      const { error: insertError } = await supabase.from("courses").insert(payload)
+      error = insertError
+    }
+
     if (error) {
-      toast.error("Could not create course", { description: error.message })
+      toast.error(editingCourseId ? "Could not update course" : "Could not create course", { description: error.message })
       setSaving(false)
       return
     }
-    toast.success("Course created")
+    toast.success(editingCourseId ? "Course updated" : "Course created")
     setSaving(false)
     setOpen(false)
-    setName("")
-    setCode("")
     router.refresh()
   }
 
@@ -80,19 +111,20 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="size-4" />
-              New course
-            </Button>
-          </DialogTrigger>
+        <Dialog open={open} onOpenChange={(val) => {
+          if (!val) setEditingCourseId(null)
+          setOpen(val)
+        }}>
+          <Button onClick={openCreateDialog}>
+            <Plus className="size-4 mr-2" />
+            New course
+          </Button>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create a course</DialogTitle>
+              <DialogTitle>{editingCourseId ? "Edit course" : "Create a course"}</DialogTitle>
               <DialogDescription>Students enrolled in matching divisions can mark attendance.</DialogDescription>
             </DialogHeader>
-            <form onSubmit={createCourse} className="grid gap-3 sm:grid-cols-2">
+            <form onSubmit={saveCourse} className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-2 sm:col-span-2">
                 <Label htmlFor="name">Course name</Label>
                 <Input id="name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Operating Systems" />
@@ -142,7 +174,7 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["CS", "IT", "ENTC", "MECH", "CIVIL", "EE"].map((b) => (
+                    {["CE", "CS", "IT", "ENTC", "MECH", "CIVIL", "EE"].map((b) => (
                       <SelectItem key={b} value={b}>
                         {b}
                       </SelectItem>
@@ -152,8 +184,8 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
               </div>
               <DialogFooter className="sm:col-span-2">
                 <Button type="submit" disabled={saving}>
-                  {saving && <Loader2 className="size-4 animate-spin" />}
-                  Create course
+                  {saving && <Loader2 className="size-4 animate-spin mr-2" />}
+                  {editingCourseId ? "Save changes" : "Create course"}
                 </Button>
               </DialogFooter>
             </form>
@@ -198,19 +230,29 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
                   <TableCell className="text-muted-foreground">{c.department ?? "—"}</TableCell>
                   <TableCell>{c.total_lectures_planned}</TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteCourse(c.id)}
-                      disabled={deletingId === c.id}
-                      aria-label={`Delete ${c.name}`}
-                    >
-                      {deletingId === c.id ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="size-4 text-destructive" />
-                      )}
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditDialog(c)}
+                        aria-label={`Edit ${c.name}`}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteCourse(c.id)}
+                        disabled={deletingId === c.id}
+                        aria-label={`Delete ${c.name}`}
+                      >
+                        {deletingId === c.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-4 text-destructive" />
+                        )}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
