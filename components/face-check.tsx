@@ -167,7 +167,7 @@ export function FaceCheck({
               const expressions = detection.expressions
 
               if (currentAction === "blink") {
-                const closed = ear < 0.22
+                const closed = ear < 0.28
                 if (closed && !s.eyesClosed) {
                   s.eyesClosed = true
                 } else if (!closed && s.eyesClosed) {
@@ -179,7 +179,7 @@ export function FaceCheck({
               }
 
               if (currentAction === "smile") {
-                if (expressions.happy > 0.7) {
+                if (expressions.happy > 0.5) {
                   s.smileCount += 1
                   setProgress(Math.min(100, (s.smileCount / 8) * 100))
                   if (s.smileCount >= 8) advanceStep()
@@ -187,15 +187,15 @@ export function FaceCheck({
               }
 
               if (currentAction === "turn_left") {
-                const delta = s.baselineYaw - s.minYaw
-                setProgress(Math.min(100, (delta / 0.18) * 100))
-                if (delta > 0.18) advanceStep()
+                const delta = s.maxYaw - s.baselineYaw
+                setProgress(Math.min(100, (delta / 0.15) * 100))
+                if (delta > 0.15) advanceStep()
               }
 
               if (currentAction === "turn_right") {
-                const delta = s.maxYaw - s.baselineYaw
-                setProgress(Math.min(100, (delta / 0.18) * 100))
-                if (delta > 0.18) advanceStep()
+                const delta = s.baselineYaw - s.minYaw
+                setProgress(Math.min(100, (delta / 0.15) * 100))
+                if (delta > 0.15) advanceStep()
               }
             }
           } else {
