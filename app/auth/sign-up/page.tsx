@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState, Suspense } from "react"
+import { useEffect, useState } from "react"
 import { ScanFace, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/client"
 
 type Role = "student" | "faculty"
 
-function SignUpForm() {
+export default function SignUpPage() {
   const router = useRouter()
   const params = useSearchParams()
   const initial = (params.get("role") as Role) || "student"
@@ -208,13 +208,5 @@ function SignUpForm() {
         </Card>
       </div>
     </main>
-  )
-}
-
-export default function SignUpPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen grid place-items-center bg-background"><Loader2 className="size-8 animate-spin text-muted-foreground" /></div>}>
-      <SignUpForm />
-    </Suspense>
   )
 }
