@@ -68,6 +68,7 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
   const [markedIds, setMarkedIds] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<LiveLecture | null>(null)
   const [saving, setSaving] = useState(false)
+  const [scanningBle, setScanningBle] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
   const courseIdsRef = useRef<string[]>([])
