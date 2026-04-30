@@ -28,16 +28,15 @@ export default async function AnalyticsPage() {
     .from("attendance")
     .select("lecture_id, status")
 
-  const courseStats = (courses ?? []).map((c) => {
-    const courseLectureIds = new Set(
-      (lectures ?? []).filter((l) => l.course_id === c.id && l.status === "completed").map((l) => l.id),
-    )
-    const records = (attendance ?? []).filter((a) => courseLectureIds.has(a.lecture_id))
-    const present = records.filter((r) => r.status === "present" || r.status === "late").length
-    const total = records.length
-    const pct = total > 0 ? Math.round((present / total) * 100) : 0
-    return { name: c.code, value: pct, total, present }
-  })
+  const lectureMap = new Map();
+  for (const lec of lectures ?? []) {
+    lectureMap.set(lec.id, lec);
+  }
+
+  const courseStatsMap = new Map();
+  for (const c of courses ?? []) {
+    courseStatsMap.set(c.id, { name: c.code, value: 0, total: 0, present: 0 });
+  }
 
   const dayMap = new Map<string, { total: number; present: number }>()
   for (const lec of lectures ?? []) {
@@ -45,15 +44,32 @@ export default async function AnalyticsPage() {
     const day = new Date(lec.scheduled_start).toISOString().slice(0, 10)
     if (!dayMap.has(day)) dayMap.set(day, { total: 0, present: 0 })
   }
+
   for (const a of attendance ?? []) {
-    const lec = (lectures ?? []).find((l) => l.id === a.lecture_id)
+    const lec = lectureMap.get(a.lecture_id)
     if (!lec) continue
+
+    if (lec.status === "completed") {
+      const courseStats = courseStatsMap.get(lec.course_id);
+      if (courseStats) {
+        courseStats.total += 1;
+        if (a.status === "present" || a.status === "late") {
+          courseStats.present += 1;
+        }
+      }
+    }
+
     const day = new Date(lec.scheduled_start).toISOString().slice(0, 10)
     const e = dayMap.get(day) ?? { total: 0, present: 0 }
     e.total += 1
     if (a.status === "present" || a.status === "late") e.present += 1
     dayMap.set(day, e)
   }
+  const courseStats = Array.from(courseStatsMap.values()).map(stats => {
+    stats.value = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0;
+    return stats;
+  });
+
   const dailyTrend = Array.from(dayMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-14)
