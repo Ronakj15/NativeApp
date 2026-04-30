@@ -29,7 +29,7 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
   const [code, setCode] = useState("")
   const [division, setDivision] = useState("A")
   const [year, setYear] = useState("1")
-  const [branch, setBranch] = useState("CS")
+  const [department, setDepartment] = useState("CS")
   const [planned, setPlanned] = useState("60")
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -48,7 +48,7 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
       faculty_id: user.id,
       division,
       year: Number(year),
-      branch,
+      department,
       total_lectures_planned: Number(planned) || 60,
     })
     if (error) {
@@ -136,8 +136,8 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
                 </Select>
               </div>
               <div className="grid gap-2 sm:col-span-2">
-                <Label>Branch</Label>
-                <Select value={branch} onValueChange={setBranch}>
+                <Label>Department</Label>
+                <Select value={department} onValueChange={setDepartment}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -182,7 +182,7 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
                 <TableHead>Code</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Year/Div</TableHead>
-                <TableHead>Branch</TableHead>
+                <TableHead>Department</TableHead>
                 <TableHead>Planned</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -195,7 +195,7 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
                   <TableCell>
                     Y{c.year ?? "—"} / {c.division ?? "—"}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{c.branch ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{c.department ?? "—"}</TableCell>
                   <TableCell>{c.total_lectures_planned}</TableCell>
                   <TableCell className="text-right">
                     <Button

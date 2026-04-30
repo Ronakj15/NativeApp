@@ -11,7 +11,7 @@ export default async function FacultyLayout({ children }: { children: React.Reac
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, email, role")
+    .select("id, full_name, email, role, avatar_url")
     .eq("id", user.id)
     .maybeSingle()
 
@@ -19,7 +19,7 @@ export default async function FacultyLayout({ children }: { children: React.Reac
   if (profile.role !== "faculty" && profile.role !== "admin") redirect("/student")
 
   return (
-    <AppShell role="faculty" user={{ full_name: profile.full_name, email: profile.email, role: profile.role }}>
+    <AppShell role="faculty" user={{ full_name: profile.full_name, email: profile.email, role: profile.role, avatar_url: profile.avatar_url }}>
       {children}
     </AppShell>
   )

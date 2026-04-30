@@ -10,7 +10,7 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
 
 export const metadata: Metadata = {
-  title: "Presence — Smart Attendance",
+  title: "Viso — Smart Attendance",
   description: "Beacon-verified, face-recognized attendance for modern campuses.",
   generator: "v0.app",
 }

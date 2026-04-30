@@ -20,8 +20,8 @@ begin
   end;
 
   insert into public.profiles (
-    id, email, role, full_name, roll_no, division, year, branch,
-    faculty_id, department
+    id, email, role, full_name, roll_no, division, year, department,
+    faculty_id
   ) values (
     new.id,
     new.email,
@@ -30,9 +30,8 @@ begin
     new.raw_user_meta_data ->> 'roll_no',
     new.raw_user_meta_data ->> 'division',
     nullif(new.raw_user_meta_data ->> 'year', '')::int,
-    new.raw_user_meta_data ->> 'branch',
-    new.raw_user_meta_data ->> 'faculty_id',
-    new.raw_user_meta_data ->> 'department'
+    new.raw_user_meta_data ->> 'department',
+    new.raw_user_meta_data ->> 'faculty_id'
   )
   on conflict (id) do nothing;
 

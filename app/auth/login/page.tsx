@@ -57,7 +57,7 @@ export default function LoginPage() {
           <div className="size-7 rounded-md bg-primary text-primary-foreground grid place-items-center">
             <ScanFace className="size-4" />
           </div>
-          <span>Presence</span>
+          <span>Viso</span>
         </Link>
         <Card>
           <CardHeader>

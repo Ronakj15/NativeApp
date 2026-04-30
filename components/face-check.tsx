@@ -280,7 +280,12 @@ export function FaceCheck({
         return
       }
     }
-    onSuccess({ descriptor: avg, durationMs: performance.now() - startedAtRef.current })
+    // Defer to avoid "setState during render of another component" warning.
+    // finish() can be called from within setStepIndex's updater (advanceStep),
+    // so onSuccess must run after the current render cycle.
+    setTimeout(() => {
+      onSuccess({ descriptor: avg, durationMs: performance.now() - startedAtRef.current })
+    }, 0)
   }
 
   const currentStep = actions[stepIndex] ? ALL_STEPS[actions[stepIndex]] : null

@@ -22,7 +22,7 @@ import {
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 
@@ -50,7 +50,7 @@ export function AppShell({
   children,
 }: {
   role: "student" | "faculty"
-  user: { full_name: string; email: string; role: string }
+  user: { full_name: string; email: string; role: string; avatar_url?: string | null }
   children: React.ReactNode
 }) {
   const pathname = usePathname()
@@ -124,6 +124,7 @@ export function AppShell({
               <p className="text-xs text-muted-foreground capitalize">{role}</p>
             </div>
             <Avatar className="size-8">
+              {user.avatar_url && <AvatarImage src={user.avatar_url} />}
               <AvatarFallback className="bg-primary text-primary-foreground text-xs">{initials}</AvatarFallback>
             </Avatar>
             <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sign out">
@@ -157,7 +158,7 @@ function SidebarBody({
         <div className="size-7 rounded-md bg-primary text-primary-foreground grid place-items-center">
           <ScanFace className="size-4" />
         </div>
-        <span>Presence</span>
+        <span>Viso</span>
       </Link>
       <nav className="flex-1 p-3 flex flex-col gap-1">
         {nav.map((item) => {

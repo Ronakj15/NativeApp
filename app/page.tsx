@@ -22,7 +22,7 @@ export default async function HomePage() {
             <div className="size-7 rounded-md bg-primary text-primary-foreground grid place-items-center">
               <ScanFace className="size-4" />
             </div>
-            <span>Presence</span>
+            <span>Viso</span>
           </Link>
           <div className="flex items-center gap-2">
             <Button asChild variant="ghost" size="sm">
@@ -113,7 +113,7 @@ export default async function HomePage() {
 
       <footer className="border-t border-border/60 py-6">
         <div className="mx-auto max-w-6xl px-4 flex flex-col md:flex-row gap-2 justify-between text-xs text-muted-foreground">
-          <span>© {new Date().getFullYear()} Presence. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} Viso. All rights reserved.</span>
           <span>Built for schools, colleges and corporate training.</span>
         </div>
       </footer>

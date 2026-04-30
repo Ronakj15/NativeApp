@@ -11,9 +11,8 @@ export type Profile = {
   roll_no: string | null
   division: string | null
   year: number | null
-  branch: string | null
-  faculty_id: string | null
   department: string | null
+  faculty_id: string | null
   avatar_url: string | null
   phone: string | null
   face_descriptor: number[] | null
@@ -29,7 +28,7 @@ export type Course = {
   faculty_id: string | null
   division: string | null
   year: number | null
-  branch: string | null
+  department: string | null
   total_lectures_planned: number
   color: string | null
   created_at: string

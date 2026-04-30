@@ -1,7 +1,7 @@
 -- Seed sample courses (faculty_id stays null until claimed by a faculty user).
 -- Re-runnable via on conflict clauses.
 
-insert into public.courses (name, code, division, year, branch, total_lectures_planned, color)
+insert into public.courses (name, code, division, year, department, total_lectures_planned, color)
 values
   ('Data Structures and Algorithms', 'CS201', 'TY-CSE-A', 3, 'CSE', 60, 'chart-1'),
   ('Database Management Systems', 'CS202', 'TY-CSE-A', 3, 'CSE', 55, 'chart-2'),

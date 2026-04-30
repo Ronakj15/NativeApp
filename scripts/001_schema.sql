@@ -25,10 +25,9 @@ create table if not exists public.profiles (
   roll_no text,
   division text,
   year integer,
-  branch text,
+  department text,
   -- faculty fields
   faculty_id text,
-  department text,
   -- shared
   avatar_url text,
   phone text,
@@ -44,7 +43,7 @@ create table if not exists public.courses (
   faculty_id uuid references public.profiles(id) on delete set null,
   division text,
   year integer,
-  branch text,
+  department text,
   total_lectures_planned integer not null default 60,
   color text default 'chart-1',
   created_at timestamptz not null default now()

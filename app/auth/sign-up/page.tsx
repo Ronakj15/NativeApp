@@ -31,10 +31,9 @@ function SignUpForm() {
   const [rollNo, setRollNo] = useState("")
   const [division, setDivision] = useState("A")
   const [year, setYear] = useState("1")
-  const [branch, setBranch] = useState("CS")
   // faculty fields
   const [facultyId, setFacultyId] = useState("")
-  const [department, setDepartment] = useState("")
+  const [department, setDepartment] = useState("CS")
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,8 +53,8 @@ function SignUpForm() {
           full_name: fullName,
           role,
           ...(role === "student"
-            ? { roll_no: rollNo, division, year, branch }
-            : { faculty_id: facultyId, department }),
+            ? { roll_no: rollNo, division, year, department }
+            : { faculty_id: facultyId }),
         },
       },
     })
@@ -142,13 +141,13 @@ function SignUpForm() {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="branch">Branch</Label>
-              <Select value={branch} onValueChange={setBranch}>
-                <SelectTrigger id="branch">
+              <Label htmlFor="department">Department</Label>
+              <Select value={department} onValueChange={setDepartment}>
+                <SelectTrigger id="department">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["CS", "IT", "ENTC", "MECH", "CIVIL", "EE"].map((b) => (
+                  {["CE", "CS", "IT", "ENTC", "MECH", "CIVIL", "EE"].map((b) => (
                     <SelectItem key={b} value={b}>
                       {b}
                     </SelectItem>
@@ -158,20 +157,9 @@ function SignUpForm() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="facultyId">Faculty ID</Label>
-              <Input id="facultyId" required value={facultyId} onChange={(e) => setFacultyId(e.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="department">Department</Label>
-              <Input
-                id="department"
-                required
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-              />
-            </div>
+          <div className="grid gap-2">
+            <Label htmlFor="facultyId">Faculty ID</Label>
+            <Input id="facultyId" required value={facultyId} onChange={(e) => setFacultyId(e.target.value)} />
           </div>
         )}
 
@@ -203,7 +191,7 @@ export default function SignUpPage() {
           <div className="size-7 rounded-md bg-primary text-primary-foreground grid place-items-center">
             <ScanFace className="size-4" />
           </div>
-          <span>Presence</span>
+          <span>Viso</span>
         </Link>
         <Card>
           <CardHeader>

@@ -70,6 +70,7 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
   const [saving, setSaving] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
+  const profileDataRef = useRef<{ year: number | null; department: string | null; division: string | null } | null>(null)
   const courseIdsRef = useRef<string[]>([])
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -80,27 +81,48 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
     } = await supabase.auth.getUser()
     if (!user) return
 
-    if (courseIdsRef.current.length === 0) {
-      const { data: enrollments } = await supabase
-        .from("enrollments")
-        .select("course_id")
-        .eq("student_id", user.id)
-      courseIdsRef.current = enrollments?.map((e) => e.course_id) ?? []
-    }
-    const courseIds = courseIdsRef.current
-    if (!enrolledDescriptor) {
+    // 1. Fetch profile for face descriptor AND matching criteria (year, department, division)
+    if (!enrolledDescriptor || !profileDataRef.current) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("face_descriptor")
+        .select("face_descriptor, year, department, division")
         .eq("id", user.id)
         .single()
+      
       setEnrolledDescriptor((profile?.face_descriptor as number[] | null) ?? null)
+      if (profile) {
+        profileDataRef.current = { year: profile.year, department: profile.department, division: profile.division }
+      }
     }
+
+    const p = profileDataRef.current
+    // If student hasn't completed profile, no courses will match
+    if (!p || !p.year || !p.department || !p.division) {
+      setLectures([])
+      setLastUpdated(new Date())
+      return
+    }
+
+    // 2. Fetch all courses matching the student's year, department, and division
+    if (courseIdsRef.current.length === 0) {
+      const { data: matchingCourses } = await supabase
+        .from("courses")
+        .select("id")
+        .eq("year", p.year)
+        .eq("department", p.department)
+        .eq("division", p.division)
+      
+      courseIdsRef.current = matchingCourses?.map((c) => c.id) ?? []
+    }
+
+    const courseIds = courseIdsRef.current
     if (courseIds.length === 0) {
       setLectures([])
       setLastUpdated(new Date())
       return
     }
+
+    // 3. Fetch live lectures for those courses and existing attendance
     const [{ data: live }, { data: existing }] = await Promise.all([
       supabase
         .from("lectures")
@@ -113,6 +135,7 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
         .eq("student_id", user.id)
         .in("status", ["present", "late"]),
     ])
+    
     setLectures((live as LiveLecture[]) ?? [])
     if (existing) setMarkedIds(new Set(existing.map((e) => e.lecture_id)))
     setLastUpdated(new Date())
@@ -212,13 +235,27 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
         return
       }
 
+      // Use acceptAllDevices for broader compatibility on Windows.
+      // We validate the device name after the user selects it.
       const device = await (navigator as any).bluetooth.requestDevice({
-        filters: [{ namePrefix: targetLecture.beacon_id }],
+        acceptAllDevices: true,
+        optionalServices: ['generic_access'],
       })
-      toast.success(`Found beacon: ${device.name || 'Unknown device'}`)
-      setSelected(lectures.find((l) => l.id === lectureId) || null)
+
+      const deviceName = device.name || device.id || ""
+      if (deviceName.startsWith(targetLecture.beacon_id)) {
+        toast.success(`Beacon verified: ${deviceName}`)
+        setSelected(lectures.find((l) => l.id === lectureId) || null)
+      } else {
+        toast.error("Beacon mismatch", {
+          description: `Don't try to cheat 😠`,
+        })
+      }
     } catch (err: any) {
-      toast.error("Bluetooth scan failed", { description: err.message })
+      if (err.name !== "NotFoundError") {
+        // NotFoundError = user cancelled the dialog, not a real error
+        toast.error("Bluetooth scan failed", { description: err.message })
+      }
     } finally {
       setScanningBle(false)
     }
@@ -226,15 +263,6 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
 
   return (
     <div className="relative glass brutal-lg rounded-3xl overflow-hidden text-foreground">
-      {/* brutalist sticker tag */}
-      <span className="absolute top-4 left-6 z-10 inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--foreground)]">
-        <span className="size-1.5 rounded-full bg-foreground animate-radar-pulse" />
-        Live Scan
-      </span>
-      <span className="absolute top-4 right-6 z-10 inline-block rounded-md bg-foreground text-background border-2 border-foreground px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest shadow-[3px_3px_0_0_var(--primary)]">
-        v0.1
-      </span>
-
       <div className="relative px-5 py-7 md:px-8 md:py-8">
         {/* HUD top bar */}
         <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest">
@@ -452,29 +480,16 @@ function RadarCanvas({ blips, hoveredId }: { blips: Blip[]; hoveredId: string | 
     hoveredRef.current = hoveredId
   }, [hoveredId])
 
-  // Resolve theme colors from CSS variables (re-read on theme changes)
+  // Use fallback hardcoded RGBA colors instead of complex CSS oklch variables
+  // to ensure Canvas API never crashes from unparseable color strings.
   useEffect(() => {
-    const refreshTheme = () => {
-      const cs = getComputedStyle(document.documentElement)
-      const get = (name: string, fallback: string) => {
-        const v = cs.getPropertyValue(name).trim()
-        if (!v) return fallback
-        // Some browsers may return the raw "L C H" (without the oklch wrapper)
-        return v.startsWith("oklch") || v.startsWith("rgb") || v.startsWith("#")
-          ? v
-          : `oklch(${v})`
-      }
-      themeRef.current = {
-        primary: get("--primary", themeRef.current.primary),
-        success: get("--success", themeRef.current.success),
-        fg: get("--foreground", themeRef.current.fg),
-        bg: get("--background", themeRef.current.bg),
-      }
+    const isDark = document.documentElement.classList.contains("dark")
+    themeRef.current = {
+      primary: "rgba(180, 255, 60, 1)", // Electric Lime
+      success: "rgba(50, 220, 100, 1)", // Green
+      fg: isDark ? "rgba(255, 255, 255, 1)" : "rgba(20, 20, 20, 1)",
+      bg: isDark ? "rgba(20, 20, 20, 1)" : "rgba(255, 255, 255, 1)",
     }
-    refreshTheme()
-    const obs = new MutationObserver(refreshTheme)
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
-    return () => obs.disconnect()
   }, [])
 
   useEffect(() => {
@@ -696,14 +711,15 @@ function RadarCanvas({ blips, hoveredId }: { blips: Blip[]; hoveredId: string | 
 function withAlpha(color: string, alpha: number): string {
   // Handles "oklch(L C H)" or "rgba(...)"
   const a = Math.max(0, Math.min(1, alpha))
-  if (color.startsWith("oklch(")) {
-    return color.replace(/^oklch\(([^)]+)\)$/, (_m, body) => `oklch(${body} / ${a})`)
-  }
   if (color.startsWith("rgba(")) {
     return color.replace(/,\s*[\d.]+\)$/, `, ${a})`)
   }
   if (color.startsWith("rgb(")) {
-    return color.replace(/^rgb\(([^)]+)\)$/, (_m, body) => `rgba(${body}, ${a})`)
+    return color.replace(/^rgb\((.*)\)$/, (_m, body) => `rgba(${body}, ${a})`)
+  }
+  // For oklch, lab, color, etc that support the slash syntax:
+  if (color.match(/^[a-z-]+\(/)) {
+    return color.replace(/\)$/, ` / ${a})`)
   }
   return color
 }
