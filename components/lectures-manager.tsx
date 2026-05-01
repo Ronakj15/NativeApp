@@ -97,6 +97,19 @@ export function LecturesManager({ lectures, courses }: { lectures: LectureRow[];
       setSaving(false)
       return
     }
+    const courseNames = courseIds.map(cid => courses.find(c => c.id === cid)?.name ?? "").join(", ")
+    const scheduledDate = new Date(`${date}T${startTime}:00`)
+    const formattedDate = scheduledDate.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })
+    const formattedTime = scheduledDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+
+    // Create a self-notification for the faculty
+    await supabase.from("notifications").insert({
+      user_id: user.id,
+      title: "📅 Lecture Scheduled",
+      body: `${courseNames} on ${formattedDate} at ${formattedTime}${room ? ` in ${room}` : ""}`,
+      type: "lecture_scheduled",
+    })
+
     toast.success("Lecture scheduled")
     setSaving(false)
     setOpen(false)

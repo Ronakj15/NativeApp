@@ -19,6 +19,7 @@ import {
   Sun,
   Moon,
   X,
+  Sparkles,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
@@ -43,6 +44,7 @@ const FACULTY_NAV: NavItem[] = [
   { href: "/faculty/students", label: "Students", icon: Users },
   { href: "/faculty/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/faculty/notifications", label: "Notifications", icon: Send },
+  { href: "/faculty/ai", label: "AI Assistant", icon: Sparkles },
   { href: "/faculty/profile", label: "Profile", icon: UserRound },
 ]
 

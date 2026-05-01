@@ -163,39 +163,59 @@ export default async function StudentDashboardPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="glass brutal rounded-2xl lg:col-span-2">
           <CardHeader>
-            <CardTitle className="tracking-tight">Today&apos;s schedule</CardTitle>
-            <CardDescription>Your lectures for today</CardDescription>
+            <CardTitle className="tracking-tight">Today&apos;s completed</CardTitle>
+            <CardDescription>Lectures finished today</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {lectures && lectures.length ? (
-              lectures.map((l: any) => (
-                <div
-                  key={l.id}
-                  className="flex items-center gap-3 p-3 rounded-xl border-2 border-foreground/15 bg-card/40 hover:border-foreground hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0_0_var(--foreground)] transition-all"
-                >
-                  <div className="size-10 rounded-md bg-foreground text-background border-2 border-foreground grid place-items-center shrink-0">
-                    <CalendarDays className="size-5" />
+            {(() => {
+              const completed = (lectures ?? [])
+                .filter((l: any) => l.status === "completed")
+                .sort((a: any, b: any) => new Date(b.scheduled_start).getTime() - new Date(a.scheduled_start).getTime())
+              const visible = completed.slice(0, 4)
+              const hasMore = completed.length > 4
+
+              if (visible.length === 0) {
+                return (
+                  <div className="flex items-center justify-center text-sm text-muted-foreground py-10">
+                    No completed lectures today yet.
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{l.courses?.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {l.courses?.code} • {l.room ?? "TBA"}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm tabular-nums">{formatTime(l.scheduled_start)}</p>
-                    {l.status === "live" && (
-                      <Badge className="mt-1 bg-success text-success-foreground border-2 border-foreground">Live</Badge>
-                    )}
-                    {l.status === "completed" && <Badge variant="secondary" className="mt-1">Done</Badge>}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="flex items-center justify-center text-sm text-muted-foreground py-10">
-                No lectures scheduled today.
-              </div>
-            )}
+                )
+              }
+
+              return (
+                <>
+                  {visible.map((l: any) => (
+                    <div
+                      key={l.id}
+                      className="flex items-center gap-3 p-3 rounded-xl border-2 border-foreground/15 bg-card/40 hover:border-foreground hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[4px_4px_0_0_var(--foreground)] transition-all"
+                    >
+                      <div className="size-10 rounded-md bg-foreground text-background border-2 border-foreground grid place-items-center shrink-0">
+                        <CalendarDays className="size-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{l.courses?.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {l.courses?.code} • {l.room ?? "TBA"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm tabular-nums">{formatTime(l.scheduled_start)}</p>
+                        <Badge variant="secondary" className="mt-1">Done</Badge>
+                      </div>
+                    </div>
+                  ))}
+                  {hasMore && (
+                    <div className="text-center pt-2">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href="/student/reports" className="text-primary font-medium">
+                          View {completed.length - 4} more <ArrowRight className="size-3.5" />
+                        </Link>
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </CardContent>
         </Card>
 

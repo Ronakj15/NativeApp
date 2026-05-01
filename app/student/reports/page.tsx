@@ -55,6 +55,26 @@ export default async function ReportsPage() {
     cells.push({ date: key, present: data.present, total: data.total, intensity })
   }
 
+  // ----- Day records for heatmap click-through
+  const dayRecords: Record<string, { id: string; status: string; method: string | null; marked_at: string | null; confidence: number | null; courseName: string; courseCode: string; room: string | null; scheduledStart: string }[]> = {}
+  for (const a of attendance ?? []) {
+    const lec = (a as any).lectures
+    const d = new Date(lec.scheduled_start as string)
+    const key = d.toISOString().slice(0, 10)
+    if (!dayRecords[key]) dayRecords[key] = []
+    dayRecords[key].push({
+      id: a.id,
+      status: a.status,
+      method: a.method ?? null,
+      marked_at: a.marked_at ?? null,
+      confidence: a.confidence ?? null,
+      courseName: lec.courses?.name ?? "Unknown",
+      courseCode: lec.courses?.code ?? "—",
+      room: lec.room ?? null,
+      scheduledStart: lec.scheduled_start,
+    })
+  }
+
   // ----- Calculator stats
   const { data: enrollments } = await supabase.from("enrollments").select("course_id").eq("student_id", user.id)
   const courseIds = enrollments?.map((e) => e.course_id) ?? []
@@ -101,10 +121,19 @@ export default async function ReportsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Records</CardTitle>
-              <CardDescription>Most recent first</CardDescription>
+              <CardDescription>Last 7 days · most recent first</CardDescription>
             </CardHeader>
             <CardContent>
-              {attendance && attendance.length ? (
+              {(() => {
+                const weekAgo = new Date()
+                weekAgo.setDate(weekAgo.getDate() - 7)
+                const recent = (attendance ?? []).filter((a: any) =>
+                  new Date(a.lectures.scheduled_start).getTime() >= weekAgo.getTime()
+                )
+                if (!recent.length) {
+                  return <p className="text-sm text-muted-foreground py-10 text-center">No attendance records in the last 7 days.</p>
+                }
+                return (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -118,7 +147,7 @@ export default async function ReportsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {attendance.map((a: any) => (
+                      {recent.map((a: any) => (
                         <TableRow key={a.id}>
                           <TableCell className="whitespace-nowrap">{formatDate(a.lectures.scheduled_start)}</TableCell>
                           <TableCell>
@@ -142,9 +171,8 @@ export default async function ReportsPage() {
                     </TableBody>
                   </Table>
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground py-10 text-center">No attendance records yet.</p>
-              )}
+                )
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
@@ -152,11 +180,11 @@ export default async function ReportsPage() {
         <TabsContent value="heatmap" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Last 12 months</CardTitle>
-              <CardDescription>Each cell is one day. Greener = better attendance.</CardDescription>
+              <CardTitle>Monthly Calendar</CardTitle>
+              <CardDescription>Select a month and click any day to see lecture details.</CardDescription>
             </CardHeader>
             <CardContent>
-              <AttendanceHeatmap cells={cells} />
+              <AttendanceHeatmap cells={cells} dayRecords={dayRecords} />
             </CardContent>
           </Card>
         </TabsContent>

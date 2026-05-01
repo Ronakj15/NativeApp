@@ -1,10 +1,11 @@
 import Link from "next/link"
-import { Presentation, Users, BarChart3, Plus, ArrowRight, Radio, Clock, Calendar } from "lucide-react"
+import { Presentation, Users, BarChart3, Plus, ArrowRight, Radio, Clock, Calendar, CalendarClock, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/server"
 import { formatTime, pct } from "@/lib/utils-format"
+import { FacultyBroadcast } from "@/components/faculty-broadcast"
 
 export default async function FacultyDashboardPage() {
   const supabase = await createClient()
@@ -38,6 +39,18 @@ export default async function FacultyDashboardPage() {
     .select("*, courses!inner(name, code)")
     .eq("faculty_id", user.id)
     .eq("status", "live")
+
+  // Upcoming lectures (scheduled, after now, next 7 days)
+  const next7 = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: upcomingLectures } = await supabase
+    .from("lectures")
+    .select("*, courses!inner(name, code)")
+    .eq("faculty_id", user.id)
+    .eq("status", "scheduled")
+    .gte("scheduled_start", new Date().toISOString())
+    .lte("scheduled_start", next7)
+    .order("scheduled_start", { ascending: true })
+    .limit(6)
 
   // Aggregate attendance for analytics ribbon
   const { data: attendanceRows } = courseIds.length
@@ -103,13 +116,112 @@ export default async function FacultyDashboardPage() {
         <StatCard label="Avg attendance" value={`${overallPct}%`} icon={BarChart3} />
       </div>
 
+      {/* Broadcast card + Upcoming lectures side by side */}
+      <div className="grid gap-6 lg:grid-cols-2 items-start">
+        <FacultyBroadcast />
+
+        <Card className="glass brutal rounded-2xl h-full">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="size-9 rounded-lg bg-primary/10 text-primary grid place-items-center border-2 border-foreground shrink-0">
+                  <CalendarClock className="size-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Upcoming Lectures</CardTitle>
+                  <CardDescription className="text-xs">Next 7 days</CardDescription>
+                </div>
+              </div>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/faculty/lectures">
+                  View all <ArrowRight className="size-3.5" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(() => {
+              // Group combined lectures (same created_at + scheduled_start)
+              const grouped = Object.values(
+                (upcomingLectures ?? []).reduce((acc: Record<string, any>, l: any) => {
+                  const key = `${l.created_at}_${l.scheduled_start}`
+                  if (!acc[key]) {
+                    acc[key] = { ...l, allCourses: [l.courses] }
+                  } else {
+                    acc[key].allCourses.push(l.courses)
+                  }
+                  return acc
+                }, {})
+              ).sort((a: any, b: any) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()) as any[]
+
+              if (grouped.length === 0) {
+                return (
+                  <div className="text-sm text-muted-foreground py-10 text-center">
+                    No upcoming lectures.{" "}
+                    <Link href="/faculty/lectures" className="text-primary hover:underline font-medium">
+                      Schedule one →
+                    </Link>
+                  </div>
+                )
+              }
+
+              return grouped.map((l: any) => {
+                const dt = new Date(l.scheduled_start)
+                const isToday = dt.toDateString() === today.toDateString()
+                const isTomorrow = dt.toDateString() === new Date(today.getTime() + 86400000).toDateString()
+                const dayLabel = isToday ? "Today" : isTomorrow ? "Tomorrow" : dt.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })
+                const isCombined = l.allCourses.length > 1
+                const displayName = isCombined
+                  ? `Combined (${l.allCourses.length} Courses)`
+                  : l.allCourses[0]?.name
+                const displayCodes = l.allCourses.map((c: any) => c.code).join(", ")
+
+                return (
+                  <Link
+                    key={l.id}
+                    href={`/faculty/lecture/${l.id}`}
+                    className="flex items-center gap-3 p-3 rounded-xl border-2 border-foreground/10 hover:border-primary/40 bg-card hover:bg-primary/5 transition-all group"
+                  >
+                    <div className="flex flex-col items-center justify-center size-12 rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
+                      <span className="text-lg font-black leading-none tabular-nums">{dt.getDate()}</span>
+                      <span className="text-[9px] font-mono uppercase leading-none">{dt.toLocaleDateString("en-IN", { month: "short" })}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">
+                        {displayName}
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                        <span className="font-mono">{displayCodes}</span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="size-3" />
+                          {formatTime(l.scheduled_start)}
+                        </span>
+                        {l.room && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="size-3" />
+                            {l.room}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 text-[10px] font-bold uppercase tracking-wider">
+                      {dayLabel}
+                    </Badge>
+                  </Link>
+                )
+              })
+            })()}
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle>Today&apos;s lectures</CardTitle>
-                <CardDescription>Scheduled, live and completed</CardDescription>
+                <CardTitle>Today&apos;s completed</CardTitle>
+                <CardDescription>Lectures finished today</CardDescription>
               </div>
               <Button asChild variant="ghost" size="sm">
                 <Link href="/faculty/lectures">
@@ -119,39 +231,59 @@ export default async function FacultyDashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            {todayLectures && todayLectures.length ? (
-              todayLectures.map((l: any) => (
-                <Link
-                  key={l.id}
-                  href={`/faculty/lecture/${l.id}`}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/40 transition"
-                >
-                  <div className="size-10 rounded-md bg-primary/10 text-primary grid place-items-center shrink-0">
-                    <Presentation className="size-5" />
+            {(() => {
+              const completed = (todayLectures ?? [])
+                .filter((l: any) => l.status === "completed")
+                .sort((a: any, b: any) => new Date(b.scheduled_start).getTime() - new Date(a.scheduled_start).getTime())
+              const visible = completed.slice(0, 4)
+              const hasMore = completed.length > 4
+
+              if (visible.length === 0) {
+                return (
+                  <div className="text-sm text-muted-foreground py-10 text-center">
+                    No completed lectures today yet.
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{l.courses?.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {l.courses?.code} • {l.room ?? "TBA"}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm tabular-nums flex items-center gap-1 justify-end">
-                      <Clock className="size-3.5 text-muted-foreground" />
-                      {formatTime(l.scheduled_start)}
-                    </p>
-                    <StatusBadge status={l.status} />
-                  </div>
-                </Link>
-              ))
-            ) : (
-              <div className="text-sm text-muted-foreground py-10 text-center">
-                Nothing scheduled today.{" "}
-                <Link href="/faculty/lectures" className="text-primary hover:underline">
-                  Schedule one →
-                </Link>
-              </div>
-            )}
+                )
+              }
+
+              return (
+                <>
+                  {visible.map((l: any) => (
+                    <Link
+                      key={l.id}
+                      href={`/faculty/lecture/${l.id}`}
+                      className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/40 transition"
+                    >
+                      <div className="size-10 rounded-md bg-primary/10 text-primary grid place-items-center shrink-0">
+                        <Presentation className="size-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{l.courses?.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {l.courses?.code} • {l.room ?? "TBA"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm tabular-nums flex items-center gap-1 justify-end">
+                          <Clock className="size-3.5 text-muted-foreground" />
+                          {formatTime(l.scheduled_start)}
+                        </p>
+                        <StatusBadge status={l.status} />
+                      </div>
+                    </Link>
+                  ))}
+                  {hasMore && (
+                    <div className="text-center pt-2">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href="/faculty/lectures" className="text-primary font-medium">
+                          View {completed.length - 4} more <ArrowRight className="size-3.5" />
+                        </Link>
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </CardContent>
         </Card>
 
