@@ -32,10 +32,14 @@ export function LiveLectureRoster({
   lectureId,
   status,
   initialRoster,
+  courseName,
+  dateString,
 }: {
   lectureId: string
   status: string
   initialRoster: RosterRow[]
+  courseName?: string
+  dateString?: string
 }) {
   const [roster, setRoster] = useState<RosterRow[]>(initialRoster)
   const [query, setQuery] = useState("")
@@ -144,7 +148,11 @@ export function LiveLectureRoster({
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `attendance-${lectureId.slice(0, 8)}.csv`
+    
+    const safeCourseName = (courseName || "attendance").replace(/[^a-z0-9]/gi, '_').toLowerCase()
+    const safeDate = dateString ? dateString.replace(/[^a-z0-9]/gi, '_') : lectureId.slice(0, 8)
+    a.download = `${safeCourseName}_${safeDate}.csv`
+    
     a.click()
     URL.revokeObjectURL(url)
   }

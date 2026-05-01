@@ -219,20 +219,19 @@ export async function aiChat(message: string): Promise<{ reply?: string; error?:
   if (!apiKey) return { error: "AI service not configured." }
 
   // Gather rich context
-  const { data: courses } = await supabase.from("courses").select("name, code, year, division, department").eq("faculty_id", user.id)
+  const { data: courses } = await supabase.from("courses").select("id, name, code, year, division, department").eq("faculty_id", user.id)
   const { data: lectures } = await supabase.from("lectures").select("scheduled_start, scheduled_end, room, status, topic, courses!inner(name, code)").eq("faculty_id", user.id).order("scheduled_start", { ascending: false }).limit(30)
   const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single()
 
   // Get attendance stats per course
-  const courseIds = (courses ?? []).map(c => (c as any).id).filter(Boolean)
+  const courseIds = (courses ?? []).map(c => c.id)
   let attendanceStats: any[] = []
   if (courseIds.length > 0) {
     const { data: att } = await supabase
       .from("attendance")
-      .select("status, lectures!inner(course_id)")
-      .in("lectures.course_id", courseIds)
-      .limit(500)
-    attendanceStats = att ?? []
+      .select("status, lecture_id, lectures!inner(course_id, faculty_id)")
+      .eq("lectures.faculty_id", user.id)
+    attendanceStats = (att ?? []).filter((a: any) => courseIds.includes(a.lectures?.course_id))
   }
 
   // Compute per-course stats

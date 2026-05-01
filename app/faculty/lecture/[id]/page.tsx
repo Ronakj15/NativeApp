@@ -80,7 +80,13 @@ export default async function LectureDetailPage({ params }: { params: Promise<{ 
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <LiveLectureRoster lectureId={id} status={lecture.status} initialRoster={roster as any} />
+          <LiveLectureRoster 
+            lectureId={id} 
+            status={lecture.status} 
+            initialRoster={roster as any} 
+            courseName={(lecture as any).courses.name}
+            dateString={`${formatDate(lecture.scheduled_start)}_${formatTime(lecture.scheduled_start)}`}
+          />
         </CardContent>
       </Card>
     </div>
