@@ -10,15 +10,31 @@ export default async function TimetablePage() {
   } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: enrollments } = await supabase.from("enrollments").select("course_id").eq("student_id", user.id)
-  const courseIds = enrollments?.map((e) => e.course_id) ?? []
+  const { data: userProfile } = await supabase
+    .from("profiles")
+    .select("department, year, division")
+    .eq("id", user.id)
+    .single()
+
+  let courseIds: string[] = []
+  
+  if (userProfile?.department && userProfile?.year && userProfile?.division) {
+    const { data: courses } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("department", userProfile.department)
+      .eq("year", userProfile.year)
+      .eq("division", userProfile.division)
+      
+    courseIds = courses?.map(c => c.id) ?? []
+  }
 
   const { data: slots } = courseIds.length
     ? await supabase
         .from("timetable_slots")
-        .select("*, courses!inner(name, code, color)")
+        .select("*, courses!inner(name, code, color), profiles(full_name)")
         .in("course_id", courseIds)
-        .order("start_time", { ascending: true })
+        .order("start_time", { ascending: false })
     : { data: [] as any[] }
 
   // Group by day_of_week (1..6 Mon-Sat)
@@ -48,12 +64,15 @@ export default async function TimetablePage() {
                 <div className="space-y-2">
                   {items.length ? (
                     items.map((s) => (
-                      <div key={s.id} className="rounded-md bg-primary/5 border border-primary/20 p-2">
-                        <p className="text-xs font-medium truncate">{s.courses?.name}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {s.start_time?.slice(0, 5)} – {s.end_time?.slice(0, 5)}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">{s.room ?? "TBA"}</p>
+                      <div key={s.id} className="rounded-md bg-primary/5 border border-primary/20 p-2 flex flex-col gap-0.5">
+                        <p className="text-xs font-bold truncate">{s.courses?.name}</p>
+                        {s.profiles?.full_name && (
+                           <p className="text-[10px] font-medium opacity-75 truncate">{s.profiles.full_name}</p>
+                        )}
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
+                          <span>{s.start_time?.slice(0, 5)} – {s.end_time?.slice(0, 5)}</span>
+                          <span>{s.room ?? "TBA"}</span>
+                        </div>
                       </div>
                     ))
                   ) : (

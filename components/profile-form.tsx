@@ -213,7 +213,7 @@ export function ProfileForm({ profile, role }: { profile: Profile; role: "studen
           </div>
           <div className="grid gap-2">
             <Label>Division</Label>
-            <Select value={division} onValueChange={setDivision}>
+            <Select value={division} onValueChange={setDivision} disabled={!!profile.division}>
               <SelectTrigger>
                 <SelectValue placeholder="Select division" />
               </SelectTrigger>
@@ -226,7 +226,7 @@ export function ProfileForm({ profile, role }: { profile: Profile; role: "studen
           </div>
           <div className="grid gap-2">
             <Label>Year</Label>
-            <Select value={year} onValueChange={setYear}>
+            <Select value={year} onValueChange={setYear} disabled={!!profile.year}>
               <SelectTrigger>
                 <SelectValue placeholder="Select year" />
               </SelectTrigger>
@@ -239,7 +239,7 @@ export function ProfileForm({ profile, role }: { profile: Profile; role: "studen
           </div>
           <div className="grid gap-2">
             <Label>Department</Label>
-            <Select value={department} onValueChange={setDepartment} disabled>
+            <Select value={department} onValueChange={setDepartment} disabled={!!profile.department}>
               <SelectTrigger>
                 <SelectValue placeholder="Select department" />
               </SelectTrigger>

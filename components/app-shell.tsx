@@ -42,6 +42,7 @@ const FACULTY_NAV: NavItem[] = [
   { href: "/faculty", label: "Dashboard", icon: LayoutDashboard },
   { href: "/faculty/lectures", label: "Lectures", icon: Presentation },
   { href: "/faculty/students", label: "Students", icon: Users },
+  { href: "/faculty/timetable", label: "Timetable", icon: CalendarDays },
   { href: "/faculty/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/faculty/notifications", label: "Notifications", icon: Send },
   { href: "/faculty/ai", label: "AI Assistant", icon: Sparkles },
