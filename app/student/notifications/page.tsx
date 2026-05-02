@@ -3,6 +3,7 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/u
 import { createClient } from "@/lib/supabase/server"
 import { formatDateTime } from "@/lib/utils-format"
 import { NotificationActions } from "@/components/notification-actions"
+import { SwipeableNotification } from "@/components/swipeable-notification"
 import { PushManager } from "@/components/push-manager"
 import { Bell, AlertTriangle, Info, CheckCircle2 } from "lucide-react"
 
@@ -41,7 +42,7 @@ export default async function NotificationsPage() {
           {notifications && notifications.length ? (
             <ul className="divide-y divide-border">
               {notifications.map((n) => (
-                <li key={n.id} className="py-3 flex items-start gap-3">
+                <SwipeableNotification key={n.id} notification={n}>
                   <NotifIcon type={n.type} read={n.read} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -51,7 +52,7 @@ export default async function NotificationsPage() {
                     {n.body && <p className="text-sm text-muted-foreground">{n.body}</p>}
                     <p className="text-xs text-muted-foreground mt-1">{formatDateTime(n.created_at)}</p>
                   </div>
-                </li>
+                </SwipeableNotification>
               ))}
             </ul>
           ) : (

@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState, useTransition } from "react"
+import { useState, useTransition, useRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   ScanFace,
   LayoutDashboard,
@@ -90,23 +91,35 @@ export function AppShell({
       </aside>
 
       {/* Sidebar — mobile drawer */}
-      {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
-          <button
-            className="absolute inset-0 bg-foreground/40"
-            aria-label="Close menu"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="relative w-72 bg-sidebar border-r border-border flex flex-col">
-            <div className="flex items-center justify-end p-2">
-              <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)}>
-                <X className="size-4" />
-              </Button>
-            </div>
-            <SidebarBody role={role} nav={nav} pathname={pathname} onNav={() => setMobileOpen(false)} />
+      <AnimatePresence>
+        {mobileOpen && (
+          <div className="md:hidden fixed inset-0 z-50 flex">
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
+              aria-label="Close menu"
+              onClick={() => setMobileOpen(false)}
+            />
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", stiffness: 400, damping: 40 }}
+              className="relative w-72 bg-sidebar/95 backdrop-blur-xl border-r border-border flex flex-col shadow-2xl"
+            >
+              <div className="flex items-center justify-end p-2">
+                <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)}>
+                  <X className="size-4" />
+                </Button>
+              </div>
+              <SidebarBody role={role} nav={nav} pathname={pathname} onNav={() => setMobileOpen(false)} />
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 border-b border-border bg-background/80 backdrop-blur sticky top-0 z-20 flex items-center px-3 md:px-6 gap-3">
@@ -154,41 +167,108 @@ function SidebarBody({
   pathname: string
   onNav?: () => void
 }) {
+  const router = useRouter()
+  const [isDragging, setIsDragging] = useState(false)
+  const [draggedHref, setDraggedHref] = useState<string | null>(null)
+  const navRef = useRef<HTMLElement>(null)
+
   return (
     <>
       <Link
         href={role === "faculty" ? "/faculty" : "/student"}
-        className="flex items-center gap-2 font-semibold px-4 h-14 border-b border-border"
+        className="flex items-center gap-2 font-semibold px-4 h-14 border-b border-border select-none"
       >
         <div className="size-7 rounded-md bg-primary text-primary-foreground grid place-items-center">
           <ScanFace className="size-4" />
         </div>
         <span>Viso</span>
       </Link>
-      <nav className="flex-1 p-3 flex flex-col gap-1">
-        {nav.map((item) => {
-          const active =
-            pathname === item.href || (item.href !== `/${role}` && pathname.startsWith(item.href + "/")) ||
-            (item.href === `/${role}` && pathname === `/${role}`)
+      <nav
+        ref={navRef}
+        className="flex-1 p-3 flex flex-col gap-1 touch-none select-none relative"
+        onPointerDown={(e) => {
+          setIsDragging(true)
+          e.currentTarget.setPointerCapture(e.pointerId)
+          const navItem = (e.target as HTMLElement).closest("[data-nav-href]")
+          if (navItem) {
+            setDraggedHref(navItem.getAttribute("data-nav-href"))
+          }
+        }}
+        onPointerMove={(e) => {
+          if (!isDragging) return
+          const el = document.elementFromPoint(e.clientX, e.clientY)
+          const navItem = el?.closest("[data-nav-href]")
+          if (navItem) {
+            const href = navItem.getAttribute("data-nav-href")
+            if (href && href !== draggedHref) setDraggedHref(href)
+          }
+        }}
+        onPointerUp={(e) => {
+          setIsDragging(false)
+          e.currentTarget.releasePointerCapture(e.pointerId)
+          if (draggedHref) {
+            router.push(draggedHref)
+            if (onNav) onNav()
+            setDraggedHref(null)
+          }
+        }}
+        onPointerCancel={(e) => {
+          setIsDragging(false)
+          e.currentTarget.releasePointerCapture(e.pointerId)
+          setDraggedHref(null)
+        }}
+      >
+        {(() => {
+          const activeIndex = nav.findIndex((item) => {
+            const isActivePath =
+              pathname === item.href ||
+              (item.href !== `/${role}` && pathname.startsWith(item.href + "/")) ||
+              (item.href === `/${role}` && pathname === `/${role}`)
+            return draggedHref ? item.href === draggedHref : isActivePath
+          })
+
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNav}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+            <>
+              {activeIndex !== -1 && (
+                <motion.div
+                  className="absolute left-3 right-3 rounded-md bg-primary shadow-md pointer-events-none"
+                  initial={false}
+                  animate={{
+                    top: 12 + activeIndex * 44, // 12px padding + index * (40px height + 4px gap)
+                    height: 40,
+                  }}
+                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                />
               )}
-            >
-              <item.icon className="size-4" />
-              {item.label}
-            </Link>
+              {nav.map((item, i) => {
+                const active = i === activeIndex
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    data-nav-href={item.href}
+                    draggable={false}
+                    onClick={(e) => {
+                      if (isDragging) e.preventDefault()
+                      else if (onNav) onNav()
+                    }}
+                    className={cn(
+                      "relative flex items-center gap-3 rounded-md px-3 h-10 text-sm transition-colors z-10",
+                      active
+                        ? "text-primary-foreground font-medium"
+                        : "text-sidebar-foreground/80 hover:text-sidebar-foreground",
+                    )}
+                  >
+                    <item.icon className="size-4" />
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </>
           )
-        })}
+        })()}
       </nav>
-      <div className="p-3 text-xs text-muted-foreground border-t border-border">
+      <div className="p-3 text-xs text-muted-foreground border-t border-border select-none">
         Privacy-first attendance, on-device face checks.
       </div>
     </>
