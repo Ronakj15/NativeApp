@@ -243,12 +243,12 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
       })
 
       const deviceName = device.name || device.id || ""
-      if (deviceName.startsWith(targetLecture.beacon_id)) {
+      if (deviceName.toLowerCase().includes(targetLecture.beacon_id.toLowerCase())) {
         toast.success(`Beacon verified: ${deviceName}`)
         setSelected(lectures.find((l) => l.id === lectureId) || null)
       } else {
         toast.error("Beacon mismatch", {
-          description: `Don't try to cheat 😠`,
+          description: `Expected: ${targetLecture.beacon_id}, Found: ${deviceName}`,
         })
       }
     } catch (err: any) {
