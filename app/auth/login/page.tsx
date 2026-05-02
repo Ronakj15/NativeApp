@@ -26,7 +26,11 @@ export default function LoginPage() {
     const supabase = createClient()
     const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      setError(error.message)
+      if (error.message.toLowerCase().includes("email not confirmed")) {
+        setError("Please verify your email address. Check your inbox for the verification link.")
+      } else {
+        setError(error.message)
+      }
       setLoading(false)
       return
     }
