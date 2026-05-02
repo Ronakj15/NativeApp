@@ -29,7 +29,7 @@ export default async function HomePage() {
               <Link href="/auth/login">Sign in</Link>
             </Button>
             <Button asChild size="sm">
-              <Link href="/auth/sign-up">Get started</Link>
+              <Link href="/auth/signup">Get started</Link>
             </Button>
           </div>
         </div>
@@ -50,13 +50,13 @@ export default async function HomePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 mt-2">
             <Button asChild size="lg">
-              <Link href="/auth/sign-up?role=student">
+              <Link href="/auth/signup?role=student">
                 <GraduationCap className="size-4" />
                 I&apos;m a student
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline">
-              <Link href="/auth/sign-up?role=faculty">
+              <Link href="/auth/signup?role=faculty">
                 <Presentation className="size-4" />
                 I&apos;m faculty
                 <ArrowRight className="size-4" />
