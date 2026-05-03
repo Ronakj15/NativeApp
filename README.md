@@ -1,35 +1,101 @@
-# v0-attendance-management-app
+# 🛰️ Viso: Next-Gen Attendance Management
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+Viso is a cutting-edge, mobile-first attendance management system designed for modern classrooms. It replaces manual registers and simple QR codes with **Native BLE Broadcasting** and **AI-powered Face Verification** to ensure zero-fraud, automated attendance tracking.
 
-## Built with v0
+---
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
+## 🚀 Key Features
 
-[Continue working on v0 →](https://v0.app/chat/projects/prj_VRQDz9csczP6DFHbnuGzYJU3IQRv)
+### 1. Native BLE Proximity (Native App Only)
+- **Faculty:** Acts as a BLE Peripheral, broadcasting a unique encrypted session ID.
+- **Students:** Automatically scan and detect nearby lectures without manual device selection.
+- **Verification:** Ensures the student is physically present in the classroom.
 
-## Getting Started
+### 2. AI Face Recognition
+- Built-in liveness detection to prevent photo-spoofing.
+- Instant face matching against student profiles using `face-api.js`.
+- Dual-layer security: **Proximity (BLE) + Identity (Face AI)**.
 
-First, run the development server:
+### 3. AI-Powered Timetables
+- Generate optimized, conflict-free timetables using **Gemini AI**.
+- Dynamic scheduling and real-time class notifications.
 
+### 4. Real-time Analytics
+- Comprehensive student attendance reports.
+- Faculty dashboards for tracking engagement and trends.
+- Automated absentee marking at the end of each session.
+
+---
+
+## 🏗️ Architecture
+
+Viso is built using a **Static Client-Side Architecture** to ensure compatibility with native mobile webviews (Capacitor) and high performance.
+
+- **Frontend:** Next.js 16 (Static Export)
+- **Logic:** Vanilla JavaScript / TypeScript
+- **Styling:** CSS3 + Lucide Icons
+- **Backend:** Supabase (Auth, DB, Real-time)
+- **Mobile Bridge:** Capacitor 8.3
+- **Native Logic:** `@capacitor-community/bluetooth-le`
+
+---
+
+## 🛠️ Getting Started
+
+### 1. Prerequisites
+- Node.js (Latest LTS)
+- NPM or PNPM
+
+### 2. Installation
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+git clone https://github.com/Ronakj15/NativeApp.git
+cd NativeApp
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Development
+```bash
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. Build for Web
+```bash
+npm run build
+```
+The static site will be generated in the `/out` directory.
 
-## Learn More
+---
 
-To learn more, take a look at the following resources:
+## 📱 Native Mobile Setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
+Viso is ready for Android and iOS deployment out of the box.
 
-<a href="https://v0.app/chat/api/kiro/clone/Ronakj15/v0-attendance-management-app" alt="Open in Kiro"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
+### Android
+```bash
+npm run build
+npx cap sync android
+npx cap open android
+```
+
+### iOS
+```bash
+npm run build
+npx cap sync ios
+npx cap open ios
+```
+*Note: Ensure you have Android Studio and Xcode installed for mobile builds.*
+
+---
+
+## 🔒 Security & Privacy
+- **Face Data:** All face matching happens locally on the client for maximum privacy.
+- **Private Repo:** This project is intended for private usage and secure campus deployment.
+
+---
+
+## 👨‍💻 Author
+**Ronak J**  
+[GitHub Profile](https://github.com/Ronakj15)
+
+---
+*Generated with ❤️ by Antigravity*
