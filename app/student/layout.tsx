@@ -1,22 +1,23 @@
-import { redirect } from "next/navigation"
+"use client"
+
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
-import { createClient } from "@/lib/supabase/server"
+import { useAuth } from "@/components/auth-provider"
+import { PageLoader } from "@/components/page-loader"
 
-export default async function StudentLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect("/auth/login")
+export default function StudentLayout({ children }: { children: React.ReactNode }) {
+  const { user, profile, loading } = useAuth()
+  const router = useRouter()
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, role, avatar_url")
-    .eq("id", user.id)
-    .maybeSingle()
+  useEffect(() => {
+    if (loading) return
+    if (!user) { router.replace("/auth/login"); return }
+    if (profile && profile.role !== "student") { router.replace("/faculty"); return }
+  }, [loading, user, profile, router])
 
-  if (!profile) redirect("/auth/login")
-  if (profile.role !== "student") redirect("/faculty")
+  if (loading || !user || !profile) return <PageLoader />
+  if (profile.role !== "student") return <PageLoader message="Redirecting…" />
 
   return (
     <AppShell role="student" user={{ full_name: profile.full_name, email: profile.email, role: profile.role, avatar_url: profile.avatar_url }}>

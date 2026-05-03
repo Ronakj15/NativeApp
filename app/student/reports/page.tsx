@@ -1,100 +1,107 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { createClient } from "@/lib/supabase/server"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
 import { formatDate, formatTime } from "@/lib/utils-format"
 import { CheckCircle2, XCircle, Clock, MinusCircle } from "lucide-react"
 import { AttendanceHeatmap } from "@/components/attendance-heatmap"
 import { BunkCalculator } from "@/components/bunk-calculator"
+import { PageLoader } from "@/components/page-loader"
 
-export default async function ReportsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+export default function ReportsPage() {
+  const { user } = useAuth()
+  const [attendance, setAttendance] = useState<any[]>([])
+  const [cells, setCells] = useState<any[]>([])
+  const [dayRecords, setDayRecords] = useState<any>({})
+  const [stats, setStats] = useState<any[]>([])
+  const [totals, setTotals] = useState({ total: 0, present: 0, late: 0, absent: 0 })
+  const [loading, setLoading] = useState(true)
 
-  // ----- Records (history)
-  const { data: attendance } = await supabase
-    .from("attendance")
-    .select("*, lectures!inner(scheduled_start, room, course_id, courses(name, code))")
-    .eq("student_id", user.id)
-    .order("marked_at", { ascending: false, nullsFirst: false })
-    .limit(200)
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
 
-  const total = attendance?.length ?? 0
-  let present = 0
-  let late = 0
-  let absent = 0
-  for (let i = 0; i < total; i++) {
-    const status = attendance![i].status
-    if (status === "present") present++
-    else if (status === "late") late++
-    else if (status === "absent") absent++
-  }
+    async function fetchData() {
+      const { data: att } = await supabase
+        .from("attendance")
+        .select("*, lectures!inner(scheduled_start, room, course_id, courses(name, code))")
+        .eq("student_id", user!.id)
+        .order("marked_at", { ascending: false, nullsFirst: false })
+        .limit(200)
 
-  // ----- Heatmap cells
-  const days = new Map<string, { present: number; total: number }>()
-  for (const a of attendance ?? []) {
-    const d = new Date(((a as any).lectures.scheduled_start) as string)
-    const key = d.toISOString().slice(0, 10)
-    const cur = days.get(key) ?? { present: 0, total: 0 }
-    cur.total += 1
-    if (a.status === "present" || a.status === "late") cur.present += 1
-    days.set(key, cur)
-  }
-  const cells: { date: string; present: number; total: number; intensity: number }[] = []
-  const today = new Date()
-  for (let i = 0; i < 365; i++) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - (364 - i))
-    const key = d.toISOString().slice(0, 10)
-    const data = days.get(key) ?? { present: 0, total: 0 }
-    const intensity = data.total ? data.present / data.total : -1
-    cells.push({ date: key, present: data.present, total: data.total, intensity })
-  }
+      const records = att ?? []
+      setAttendance(records)
 
-  // ----- Day records for heatmap click-through
-  const dayRecords: Record<string, { id: string; status: string; method: string | null; marked_at: string | null; confidence: number | null; courseName: string; courseCode: string; room: string | null; scheduledStart: string }[]> = {}
-  for (const a of attendance ?? []) {
-    const lec = (a as any).lectures
-    const d = new Date(lec.scheduled_start as string)
-    const key = d.toISOString().slice(0, 10)
-    if (!dayRecords[key]) dayRecords[key] = []
-    dayRecords[key].push({
-      id: a.id,
-      status: a.status,
-      method: a.method ?? null,
-      marked_at: a.marked_at ?? null,
-      confidence: a.confidence ?? null,
-      courseName: lec.courses?.name ?? "Unknown",
-      courseCode: lec.courses?.code ?? "—",
-      room: lec.room ?? null,
-      scheduledStart: lec.scheduled_start,
-    })
-  }
+      let present = 0, late = 0, absent = 0
+      for (const a of records) {
+        if (a.status === "present") present++
+        else if (a.status === "late") late++
+        else if (a.status === "absent") absent++
+      }
+      setTotals({ total: records.length, present, late, absent })
 
-  // ----- Calculator stats
-  const { data: enrollments } = await supabase.from("enrollments").select("course_id").eq("student_id", user.id)
-  const courseIds = enrollments?.map((e) => e.course_id) ?? []
-  const { data: courses } = courseIds.length
-    ? await supabase.from("courses").select("*").in("id", courseIds)
-    : { data: [] as any[] }
+      // Heatmap cells
+      const days = new Map<string, { present: number; total: number }>()
+      for (const a of records) {
+        const d = new Date((a as any).lectures.scheduled_start as string)
+        const key = d.toISOString().slice(0, 10)
+        const cur = days.get(key) ?? { present: 0, total: 0 }
+        cur.total += 1
+        if (a.status === "present" || a.status === "late") cur.present += 1
+        days.set(key, cur)
+      }
+      const cellsArr: any[] = []
+      const today = new Date()
+      for (let i = 0; i < 365; i++) {
+        const d = new Date(today)
+        d.setDate(today.getDate() - (364 - i))
+        const key = d.toISOString().slice(0, 10)
+        const data = days.get(key) ?? { present: 0, total: 0 }
+        const intensity = data.total ? data.present / data.total : -1
+        cellsArr.push({ date: key, present: data.present, total: data.total, intensity })
+      }
+      setCells(cellsArr)
 
-  const stats = (courses ?? []).map((c) => {
-    const list = (attendance ?? []).filter((a: any) => a.lectures?.course_id === c.id)
-    const presentC = list.filter((a) => a.status === "present" || a.status === "late").length
-    const totalC = list.length
-    return {
-      id: c.id,
-      name: c.name,
-      code: c.code,
-      planned: c.total_lectures_planned ?? 60,
-      present: presentC,
-      total: totalC,
+      // Day records for heatmap click-through
+      const dr: any = {}
+      for (const a of records) {
+        const lec = (a as any).lectures
+        const d = new Date(lec.scheduled_start as string)
+        const key = d.toISOString().slice(0, 10)
+        if (!dr[key]) dr[key] = []
+        dr[key].push({
+          id: a.id, status: a.status, method: a.method ?? null, marked_at: a.marked_at ?? null,
+          confidence: a.confidence ?? null, courseName: lec.courses?.name ?? "Unknown",
+          courseCode: lec.courses?.code ?? "—", room: lec.room ?? null, scheduledStart: lec.scheduled_start,
+        })
+      }
+      setDayRecords(dr)
+
+      // Calculator stats
+      const { data: enrollments } = await supabase.from("enrollments").select("course_id").eq("student_id", user!.id)
+      const courseIds = enrollments?.map((e) => e.course_id) ?? []
+      if (courseIds.length) {
+        const { data: courses } = await supabase.from("courses").select("*").in("id", courseIds)
+        const s = (courses ?? []).map((c) => {
+          const list = records.filter((a: any) => a.lectures?.course_id === c.id)
+          const presentC = list.filter((a) => a.status === "present" || a.status === "late").length
+          return { id: c.id, name: c.name, code: c.code, planned: c.total_lectures_planned ?? 60, present: presentC, total: list.length }
+        })
+        setStats(s)
+      }
+
+      setLoading(false)
     }
-  })
+
+    fetchData()
+  }, [user])
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="flex flex-col gap-6">
@@ -104,10 +111,10 @@ export default async function ReportsPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatTile label="Total" value={total} />
-        <StatTile label="Present" value={present} tone="success" />
-        <StatTile label="Late" value={late} tone="warning" />
-        <StatTile label="Absent" value={absent} tone="destructive" />
+        <StatTile label="Total" value={totals.total} />
+        <StatTile label="Present" value={totals.present} tone="success" />
+        <StatTile label="Late" value={totals.late} tone="warning" />
+        <StatTile label="Absent" value={totals.absent} tone="destructive" />
       </div>
 
       <Tabs defaultValue="history" className="w-full">
@@ -127,7 +134,7 @@ export default async function ReportsPage() {
               {(() => {
                 const weekAgo = new Date()
                 weekAgo.setDate(weekAgo.getDate() - 7)
-                const recent = (attendance ?? []).filter((a: any) =>
+                const recent = attendance.filter((a: any) =>
                   new Date(a.lectures.scheduled_start).getTime() >= weekAgo.getTime()
                 )
                 if (!recent.length) {
@@ -205,23 +212,8 @@ export default async function ReportsPage() {
   )
 }
 
-function StatTile({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: number
-  tone?: "success" | "warning" | "destructive"
-}) {
-  const color =
-    tone === "success"
-      ? "text-success"
-      : tone === "warning"
-        ? "text-warning"
-        : tone === "destructive"
-          ? "text-destructive"
-          : ""
+function StatTile({ label, value, tone }: { label: string; value: number; tone?: "success" | "warning" | "destructive" }) {
+  const color = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "destructive" ? "text-destructive" : ""
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <p className="text-xs text-muted-foreground">{label}</p>
@@ -231,31 +223,8 @@ function StatTile({
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === "present")
-    return (
-      <Badge className="bg-success/15 text-success hover:bg-success/15">
-        <CheckCircle2 className="size-3" />
-        Present
-      </Badge>
-    )
-  if (status === "late")
-    return (
-      <Badge className="bg-warning/20 text-warning-foreground hover:bg-warning/20">
-        <Clock className="size-3" />
-        Late
-      </Badge>
-    )
-  if (status === "excused")
-    return (
-      <Badge variant="secondary">
-        <MinusCircle className="size-3" />
-        Excused
-      </Badge>
-    )
-  return (
-    <Badge variant="destructive">
-      <XCircle className="size-3" />
-      Absent
-    </Badge>
-  )
+  if (status === "present") return <Badge className="bg-success/15 text-success hover:bg-success/15"><CheckCircle2 className="size-3" />Present</Badge>
+  if (status === "late") return <Badge className="bg-warning/20 text-warning-foreground hover:bg-warning/20"><Clock className="size-3" />Late</Badge>
+  if (status === "excused") return <Badge variant="secondary"><MinusCircle className="size-3" />Excused</Badge>
+  return <Badge variant="destructive"><XCircle className="size-3" />Absent</Badge>
 }

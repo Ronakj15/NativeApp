@@ -43,6 +43,7 @@ export function FacultyBroadcast() {
   const [elapsed, setElapsed] = useState("00:00")
   const [attendeeCount, setAttendeeCount] = useState(0)
   const [recentStudents, setRecentStudents] = useState<StudentBlip[]>([])
+  const [bleActive, setBleActive] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const seenIdsRef = useRef<Set<string>>(new Set())
@@ -155,7 +156,24 @@ export function FacultyBroadcast() {
     setAttendeeCount(0); seenIdsRef.current.clear(); setRecentStudents([])
     setShowStartDialog(false); setStarting(false)
     setSelectedCourseId(""); setRoom(""); setTopic("")
-    toast({ title: "Session started!", description: `Broadcasting as ${beaconId}` })
+
+    // Start native BLE advertising so students can auto-detect this beacon
+    try {
+      const { startAdvertising, isNative } = await import("@/lib/ble")
+      if (isNative()) {
+        const ok = await startAdvertising(beaconId)
+        setBleActive(ok)
+        if (ok) {
+          toast({ title: "Session started!", description: `📡 BLE broadcasting as ${beaconId}` })
+        } else {
+          toast({ title: "Session started!", description: `BLE advertising unavailable — students can still scan manually. Beacon ID: ${beaconId}` })
+        }
+      } else {
+        toast({ title: "Session started!", description: `Broadcasting as ${beaconId} (use physical beacon for BLE)` })
+      }
+    } catch {
+      toast({ title: "Session started!", description: `Broadcasting as ${beaconId}` })
+    }
   }
 
   async function handleStop() {
@@ -166,6 +184,14 @@ export function FacultyBroadcast() {
       .update({ status: "completed", ended_at: new Date().toISOString() })
       .eq("id", liveSession.lectureId)
     if (error) { toast({ title: "Failed to end session", description: error.message, variant: "destructive" }); setStopping(false); return }
+
+    // Stop native BLE advertising
+    try {
+      const { stopAdvertising } = await import("@/lib/ble")
+      await stopAdvertising()
+      setBleActive(false)
+    } catch { /* ignore */ }
+
     toast({ title: "Session ended", description: `${attendeeCount} student${attendeeCount !== 1 ? "s" : ""} marked present` })
     setLiveSession(null); setStopping(false)
   }
@@ -223,9 +249,22 @@ export function FacultyBroadcast() {
             </div>
 
             {/* Session info */}
-            <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="grid grid-cols-2 gap-2 mb-2">
               <InfoTile icon={Bluetooth} label="Beacon ID" value={liveSession.beaconId} accent />
               <InfoTile icon={MapPin} label="Room" value={liveSession.room} />
+            </div>
+            {/* BLE advertising status */}
+            <div className={cn(
+              "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium mb-4 brutal-sm",
+              bleActive
+                ? "bg-success/10 text-success border border-success/20"
+                : "bg-warning/10 text-warning border border-warning/20"
+            )}>
+              <Signal className={cn("size-3.5", bleActive && "animate-pulse")} />
+              {bleActive
+                ? "BLE broadcasting — students will auto-detect this beacon"
+                : "BLE advertising not active — students can scan manually by beacon ID"
+              }
             </div>
 
             {/* Course banner */}

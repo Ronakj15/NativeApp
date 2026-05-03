@@ -1,7 +1,4 @@
-"use server"
-
-import { createClient } from '@/lib/supabase/server'
-import { sendPushNotification } from '@/lib/push'
+import { createClient } from '@/lib/supabase/client'
 
 type NotifyPayload = {
   department: string  // "ALL" or specific dept
@@ -21,7 +18,7 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 export async function sendFacultyNotification(payload: NotifyPayload) {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Not authenticated" }
 
@@ -64,16 +61,11 @@ export async function sendFacultyNotification(payload: NotifyPayload) {
   }))
   await supabase.from('notifications').insert(notifsToInsert)
 
-  // 3. Dispatch OS-level push notifications
-  for (const s of students) {
-    await sendPushNotification(s.id, fullTitle, payload.body)
-  }
-
   return { success: true, count: students.length }
 }
 
 export async function deleteBroadcast(id: string) {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Not authenticated" }
 

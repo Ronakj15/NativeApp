@@ -152,7 +152,7 @@ export function StudentsList({ students, stats }: {
                 return (
                   <Link
                     key={s.id}
-                    href={`/faculty/students/${s.id}`}
+                    href={`/faculty/students/detail?id=${s.id}`}
                     className="flex items-center gap-4 py-3 hover:bg-muted/50 -mx-6 px-6 transition-colors cursor-pointer"
                   >
                     <Avatar className="size-10">

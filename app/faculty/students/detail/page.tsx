@@ -1,90 +1,109 @@
-import { createClient } from "@/lib/supabase/server"
-import { redirect, notFound } from "next/navigation"
+"use client"
+
+import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Mail, Phone, CalendarCheck, CalendarX, TrendingUp, GraduationCap } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
+import { PageLoader } from "@/components/page-loader"
+import { Suspense } from "react"
 
-export default async function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect("/auth/login")
+function StudentDetailContent() {
+  const { user } = useAuth()
+  const searchParams = useSearchParams()
+  const id = searchParams.get("id")
 
-  const { data: myProfile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
-  if (!myProfile || myProfile.role === "student") redirect("/student")
+  const [student, setStudent] = useState<any>(null)
+  const [overallPct, setOverallPct] = useState(0)
+  const [presentCount, setPresentCount] = useState(0)
+  const [absentCount, setAbsentCount] = useState(0)
+  const [courseBreakdown, setCourseBreakdown] = useState<Map<string, { total: number; present: number }>>(new Map())
+  const [courseMap, setCourseMap] = useState<Map<string, { name: string; code: string }>>(new Map())
+  const [recentAttendance, setRecentAttendance] = useState<any[]>([])
+  const [lectureMap, setLectureMap] = useState<Map<string, any>>(new Map())
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
-  const { data: student } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", id)
-    .eq("role", "student")
-    .single()
+  useEffect(() => {
+    if (!user || !id) return
+    const supabase = createClient()
 
-  if (!student) notFound()
+    async function fetchData() {
+      const { data: s } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", id!)
+        .eq("role", "student")
+        .single()
 
-  // Get all attendance records for this student, joined with lectures
-  const { data: attendance } = await supabase
-    .from("attendance")
-    .select("id, lecture_id, status, marked_at, method")
-    .eq("student_id", id)
+      if (!s) { setNotFound(true); setLoading(false); return }
+      setStudent(s)
 
-  // Get all lectures for context
-  const lectureIds = [...new Set((attendance ?? []).map(a => a.lecture_id))]
-  const { data: lectures } = lectureIds.length > 0
-    ? await supabase
-        .from("lectures")
-        .select("id, course_id, scheduled_start, topic, status")
-        .in("id", lectureIds)
-    : { data: [] as any[] }
+      const { data: attendance } = await supabase
+        .from("attendance")
+        .select("id, lecture_id, status, marked_at, method")
+        .eq("student_id", id!)
 
-  // Get courses for names
-  const courseIds = [...new Set((lectures ?? []).map(l => l.course_id))]
-  const { data: courses } = courseIds.length > 0
-    ? await supabase
-        .from("courses")
-        .select("id, name, code")
-        .in("id", courseIds)
-    : { data: [] as any[] }
+      const lectureIds = [...new Set((attendance ?? []).map(a => a.lecture_id))]
+      const { data: lectures } = lectureIds.length > 0
+        ? await supabase.from("lectures").select("id, course_id, scheduled_start, topic, status").in("id", lectureIds)
+        : { data: [] as any[] }
 
-  const courseMap = new Map<string, { name: string; code: string }>()
-  for (const c of courses ?? []) courseMap.set(c.id, { name: c.name, code: c.code })
+      const courseIds = [...new Set((lectures ?? []).map(l => l.course_id))]
+      const { data: courses } = courseIds.length > 0
+        ? await supabase.from("courses").select("id, name, code").in("id", courseIds)
+        : { data: [] as any[] }
 
-  const lectureMap = new Map<string, { course_id: string; scheduled_start: string; topic: string | null; status: string }>()
-  for (const l of lectures ?? []) lectureMap.set(l.id, l)
+      const cm = new Map<string, { name: string; code: string }>()
+      for (const c of courses ?? []) cm.set(c.id, { name: c.name, code: c.code })
+      setCourseMap(cm)
 
-  // Stats
-  const totalRecords = (attendance ?? []).length
-  const presentCount = (attendance ?? []).filter(a => a.status === "present" || a.status === "late").length
-  const absentCount = (attendance ?? []).filter(a => a.status === "absent").length
-  const lateCount = (attendance ?? []).filter(a => a.status === "late").length
-  const overallPct = totalRecords > 0 ? Math.round((presentCount / totalRecords) * 100) : 0
+      const lm = new Map<string, any>()
+      for (const l of lectures ?? []) lm.set(l.id, l)
+      setLectureMap(lm)
 
-  // Per-course breakdown
-  const courseBreakdown = new Map<string, { total: number; present: number }>()
-  for (const a of attendance ?? []) {
-    const lec = lectureMap.get(a.lecture_id)
-    if (!lec) continue
-    const entry = courseBreakdown.get(lec.course_id) ?? { total: 0, present: 0 }
-    entry.total += 1
-    if (a.status === "present" || a.status === "late") entry.present += 1
-    courseBreakdown.set(lec.course_id, entry)
-  }
+      const totalRecords = (attendance ?? []).length
+      const pc = (attendance ?? []).filter(a => a.status === "present" || a.status === "late").length
+      const ac = (attendance ?? []).filter(a => a.status === "absent").length
+      setPresentCount(pc)
+      setAbsentCount(ac)
+      setOverallPct(totalRecords > 0 ? Math.round((pc / totalRecords) * 100) : 0)
 
-  // Recent attendance (last 20)
-  const recentAttendance = [...(attendance ?? [])]
-    .sort((a, b) => new Date(b.marked_at ?? 0).getTime() - new Date(a.marked_at ?? 0).getTime())
-    .slice(0, 20)
+      const cb = new Map<string, { total: number; present: number }>()
+      for (const a of attendance ?? []) {
+        const lec = lm.get(a.lecture_id)
+        if (!lec) continue
+        const entry = cb.get(lec.course_id) ?? { total: 0, present: 0 }
+        entry.total += 1
+        if (a.status === "present" || a.status === "late") entry.present += 1
+        cb.set(lec.course_id, entry)
+      }
+      setCourseBreakdown(cb)
+
+      const ra = [...(attendance ?? [])]
+        .sort((a, b) => new Date(b.marked_at ?? 0).getTime() - new Date(a.marked_at ?? 0).getTime())
+        .slice(0, 20)
+      setRecentAttendance(ra)
+
+      setLoading(false)
+    }
+
+    fetchData()
+  }, [user, id])
+
+  if (!id) return <div className="py-20 text-center text-muted-foreground">No student ID provided.</div>
+  if (loading) return <PageLoader />
+  if (notFound) return <div className="py-20 text-center text-muted-foreground">Student not found.</div>
 
   const initials = (student.full_name || student.email).slice(0, 2).toUpperCase()
 
   return (
     <div className="space-y-6">
-      {/* Back button */}
       <Button asChild variant="ghost" size="sm" className="-ml-2">
         <Link href="/faculty/students">
           <ArrowLeft className="size-4 mr-1" />
@@ -92,7 +111,6 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
         </Link>
       </Button>
 
-      {/* Student Header */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
@@ -132,7 +150,6 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
         </CardContent>
       </Card>
 
-      {/* Overview Stats */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
@@ -140,9 +157,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
               <TrendingUp className="size-3.5" /> Overall
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{overallPct}%</div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-semibold">{overallPct}%</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
@@ -150,9 +165,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
               <CalendarCheck className="size-3.5" /> Present
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold text-green-600">{presentCount}</div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-semibold text-green-600">{presentCount}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
@@ -160,9 +173,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
               <CalendarX className="size-3.5" /> Absent
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold text-red-500">{absentCount}</div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-semibold text-red-500">{absentCount}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
@@ -170,40 +181,26 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
               <GraduationCap className="size-3.5" /> Courses
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{courseBreakdown.size}</div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-semibold">{courseBreakdown.size}</div></CardContent>
         </Card>
       </div>
 
-      {/* Per-Course Breakdown */}
       {courseBreakdown.size > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle>Course-wise Attendance</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Course-wise Attendance</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-4">
               {Array.from(courseBreakdown.entries()).map(([courseId, data]) => {
                 const course = courseMap.get(courseId)
-                const pct = data.total > 0 ? Math.round((data.present / data.total) * 100) : 0
+                const p = data.total > 0 ? Math.round((data.present / data.total) * 100) : 0
                 return (
                   <div key={courseId} className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">
-                        {course ? `${course.code} — ${course.name}` : courseId}
-                      </span>
-                      <span className="tabular-nums text-muted-foreground">
-                        {data.present}/{data.total} ({pct}%)
-                      </span>
+                      <span className="font-medium">{course ? `${course.code} — ${course.name}` : courseId}</span>
+                      <span className="tabular-nums text-muted-foreground">{data.present}/{data.total} ({p}%)</span>
                     </div>
                     <div className="h-2 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          pct >= 75 ? "bg-green-500" : pct >= 50 ? "bg-yellow-500" : "bg-red-500"
-                        }`}
-                        style={{ width: `${pct}%` }}
-                      />
+                      <div className={`h-full rounded-full transition-all ${p >= 75 ? "bg-green-500" : p >= 50 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${p}%` }} />
                     </div>
                   </div>
                 )
@@ -213,11 +210,8 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
         </Card>
       )}
 
-      {/* Recent Attendance History */}
       <Card>
-        <CardHeader>
-          <CardTitle>Recent Attendance</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Recent Attendance</CardTitle></CardHeader>
         <CardContent>
           {recentAttendance.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">No attendance records yet.</p>
@@ -236,8 +230,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
                       <div className="text-xs text-muted-foreground">
                         {date
                           ? date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) +
-                            " · " +
-                            date.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+                            " · " + date.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
                           : "—"}
                       </div>
                     </div>
@@ -261,5 +254,13 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function StudentDetailPage() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <StudentDetailContent />
+    </Suspense>
   )
 }

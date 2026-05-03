@@ -1,20 +1,34 @@
-import { FacultyNotificationComposer } from "@/components/faculty-notification-composer"
-import { createClient } from "@/lib/supabase/server"
+"use client"
 
-export default async function FacultyNotificationsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  let broadcasts: any[] = []
-  if (user) {
-    const { data } = await supabase
-      .from('broadcasts')
-      .select('*')
-      .eq('faculty_id', user.id)
-      .order('created_at', { ascending: false })
-      
-    broadcasts = data || []
-  }
+import { useEffect, useState } from "react"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
+import { FacultyNotificationComposer } from "@/components/faculty-notification-composer"
+import { PageLoader } from "@/components/page-loader"
+
+export default function FacultyNotificationsPage() {
+  const { user } = useAuth()
+  const [broadcasts, setBroadcasts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
+
+    async function fetchData() {
+      const { data } = await supabase
+        .from("broadcasts")
+        .select("*")
+        .eq("faculty_id", user!.id)
+        .order("created_at", { ascending: false })
+      setBroadcasts(data ?? [])
+      setLoading(false)
+    }
+
+    fetchData()
+  }, [user])
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="flex flex-col gap-6">

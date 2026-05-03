@@ -223,10 +223,6 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
   }
 
   async function scanForBeacon(lectureId: string) {
-    if (!(navigator as any).bluetooth) {
-      toast.error("Web Bluetooth is not supported in your browser.")
-      return
-    }
     setScanningBle(true)
     try {
       const targetLecture = lectures.find((l) => l.id === lectureId)
@@ -235,27 +231,33 @@ export function AttendanceRadar({ faceEnrolled }: { faceEnrolled: boolean }) {
         return
       }
 
-      // Use acceptAllDevices for broader compatibility on Windows.
-      // We validate the device name after the user selects it.
-      const device = await (navigator as any).bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: ['generic_access'],
-      })
+      // Use native Capacitor BLE scanner (auto-scan, no manual picker)
+      const { scanForBeaconId } = await import("@/lib/ble")
+      const result = await scanForBeaconId(targetLecture.beacon_id, 12000)
 
-      const deviceName = device.name || device.id || ""
-      if (deviceName.toLowerCase().includes(targetLecture.beacon_id.toLowerCase())) {
-        toast.success(`Beacon verified: ${deviceName}`)
-        setSelected(lectures.find((l) => l.id === lectureId) || null)
-      } else {
-        toast.error("Beacon mismatch", {
-          description: `Expected: ${targetLecture.beacon_id}, Found: ${deviceName}`,
-        })
+      switch (result.status) {
+        case "found":
+          toast.success(`Beacon verified: ${result.matchedDeviceName}`, {
+            description: result.rssi ? `Signal strength: ${result.rssi} dBm` : undefined,
+          })
+          setSelected(lectures.find((l) => l.id === lectureId) || null)
+          break
+        case "not-found":
+          toast.error("Beacon not found", {
+            description: result.error || `Could not find beacon "${targetLecture.beacon_id}" nearby.`,
+          })
+          break
+        case "error":
+          toast.error("Bluetooth scan failed", {
+            description: result.error,
+          })
+          break
+        case "idle":
+          // User cancelled — do nothing
+          break
       }
     } catch (err: any) {
-      if (err.name !== "NotFoundError") {
-        // NotFoundError = user cancelled the dialog, not a real error
-        toast.error("Bluetooth scan failed", { description: err.message })
-      }
+      toast.error("Bluetooth error", { description: err.message })
     } finally {
       setScanningBle(false)
     }

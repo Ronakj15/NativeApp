@@ -1,35 +1,49 @@
-import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
+"use client"
+
+import { useEffect, useState } from "react"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
 import { StudentsList } from "@/components/students-list"
+import { PageLoader } from "@/components/page-loader"
 
-export default async function StudentsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect("/auth/login")
+export default function StudentsPage() {
+  const { user, profile } = useAuth()
+  const [students, setStudents] = useState<any[]>([])
+  const [statsObj, setStatsObj] = useState<Record<string, { total: number; present: number }>>({})
+  const [loading, setLoading] = useState(true)
 
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-  if (!profile || profile.role === "student") redirect("/student")
+  useEffect(() => {
+    if (!user || !profile) return
+    const supabase = createClient()
 
-  const { data: students } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, roll_no, division, year, department, avatar_url, face_enrolled_at")
-    .eq("role", "student")
-    .order("roll_no", { ascending: true })
+    async function fetchData() {
+      const { data: s } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, roll_no, division, year, department, avatar_url, face_enrolled_at")
+        .eq("role", "student")
+        .order("roll_no", { ascending: true })
+      setStudents(s ?? [])
 
-  const { data: attendance } = await supabase.from("attendance").select("student_id, status")
-  const stats = new Map<string, { total: number; present: number }>()
-  for (const a of attendance ?? []) {
-    const e = stats.get(a.student_id) ?? { total: 0, present: 0 }
-    e.total += 1
-    if (a.status === "present" || a.status === "late") e.present += 1
-    stats.set(a.student_id, e)
-  }
+      const { data: attendance } = await supabase.from("attendance").select("student_id, status")
+      const stats = new Map<string, { total: number; present: number }>()
+      for (const a of attendance ?? []) {
+        const e = stats.get(a.student_id) ?? { total: 0, present: 0 }
+        e.total += 1
+        if (a.status === "present" || a.status === "late") e.present += 1
+        stats.set(a.student_id, e)
+      }
 
-  // Convert Map to a serialisable object for the client component
-  const statsObj: Record<string, { total: number; present: number }> = {}
-  stats.forEach((v, k) => { statsObj[k] = v })
+      const obj: Record<string, { total: number; present: number }> = {}
+      stats.forEach((v, k) => { obj[k] = v })
+      setStatsObj(obj)
+
+      setLoading(false)
+    }
+
+    fetchData()
+  }, [user, profile])
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-6">
@@ -39,7 +53,7 @@ export default async function StudentsPage() {
       </div>
 
       <StudentsList
-        students={students ?? []}
+        students={students}
         stats={statsObj}
       />
     </div>

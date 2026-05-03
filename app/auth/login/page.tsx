@@ -51,7 +51,7 @@ export default function LoginPage() {
     }
 
     router.push("/post-signin")
-    router.refresh()
+    // Auth state change will be handled by AuthProvider
   }
 
   return (

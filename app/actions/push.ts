@@ -1,10 +1,9 @@
-"use server"
-
-import { createClient } from '@/lib/supabase/server'
-import { sendPushNotification } from '@/lib/push'
+import { createClient } from '@/lib/supabase/client'
 
 export async function notifyLectureStarted(courseId: string, courseCode: string) {
-  const supabase = await createClient()
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
 
   // Fetch the course targeting metadata
   const { data: course } = await supabase
@@ -33,7 +32,7 @@ export async function notifyLectureStarted(courseId: string, courseCode: string)
   const title = `Lecture Started: ${courseCode}`
   const body = `Your faculty has just started a live lecture for ${courseCode}. Mark your attendance now.`
 
-  // 1. Insert into in-app notifications table
+  // Insert into in-app notifications table
   const notifsToInsert = targetStudents.map(s => ({
     user_id: s.id,
     title,
@@ -41,9 +40,4 @@ export async function notifyLectureStarted(courseId: string, courseCode: string)
     type: 'alert'
   }))
   await supabase.from('notifications').insert(notifsToInsert)
-
-  // 2. Dispatch real OS-level push notifications to all enrolled students
-  for (const s of targetStudents) {
-    await sendPushNotification(s.id, title, body)
-  }
 }

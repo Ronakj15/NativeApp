@@ -1,18 +1,28 @@
-import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
+"use client"
 
-export default async function PostSignInPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/components/auth-provider"
+import { PageLoader } from "@/components/page-loader"
 
-  if (!user) redirect("/auth/login")
+export default function PostSignInPage() {
+  const { user, profile, loading } = useAuth()
+  const router = useRouter()
 
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
+  useEffect(() => {
+    if (loading) return
+    if (!user) {
+      router.replace("/auth/login")
+      return
+    }
+    if (profile) {
+      if (profile.role === "faculty" || profile.role === "admin") {
+        router.replace("/faculty")
+      } else {
+        router.replace("/student")
+      }
+    }
+  }, [loading, user, profile, router])
 
-  if (profile?.role === "faculty" || profile?.role === "admin") {
-    redirect("/faculty")
-  }
-  redirect("/student")
+  return <PageLoader message="Redirecting…" />
 }

@@ -1,41 +1,69 @@
-import { notFound } from "next/navigation"
+"use client"
+
+import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, MapPin, Radio } from "lucide-react"
-import { createClient } from "@/lib/supabase/server"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
 import { formatDate, formatTime } from "@/lib/utils-format"
 import { LiveLectureRoster } from "@/components/live-lecture-roster"
+import { PageLoader } from "@/components/page-loader"
+import { Suspense } from "react"
 
-export default async function LectureDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const supabase = await createClient()
+function LectureDetailContent() {
+  const { user } = useAuth()
+  const searchParams = useSearchParams()
+  const id = searchParams.get("id")
 
-  const { data: lecture } = await supabase
-    .from("lectures")
-    .select("*, courses!inner(id, name, code)")
-    .eq("id", id)
-    .maybeSingle()
+  const [lecture, setLecture] = useState<any>(null)
+  const [roster, setRoster] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
-  if (!lecture) notFound()
+  useEffect(() => {
+    if (!user || !id) return
+    const supabase = createClient()
 
-  const courseId = (lecture as any).courses.id
+    async function fetchData() {
+      const { data: lec } = await supabase
+        .from("lectures")
+        .select("*, courses!inner(id, name, code)")
+        .eq("id", id!)
+        .maybeSingle()
 
-  const { data: enrollments } = await supabase
-    .from("enrollments")
-    .select("student_id, profiles!inner(id, full_name, email, roll_no, division)")
-    .eq("course_id", courseId)
-    .order("profiles(roll_no)", { ascending: true })
+      if (!lec) { setNotFound(true); setLoading(false); return }
+      setLecture(lec)
 
-  const { data: attendance } = await supabase
-    .from("attendance")
-    .select("*")
-    .eq("lecture_id", id)
+      const courseId = (lec as any).courses.id
 
-  const attendanceMap = new Map((attendance ?? []).map((a) => [a.student_id, a]))
-  const roster = (enrollments ?? []).map((e: any) => ({
-    student: e.profiles,
-    record: attendanceMap.get(e.student_id) ?? null,
-  }))
+      const { data: enrollments } = await supabase
+        .from("enrollments")
+        .select("student_id, profiles!inner(id, full_name, email, roll_no, division)")
+        .eq("course_id", courseId)
+        .order("profiles(roll_no)", { ascending: true })
+
+      const { data: attendance } = await supabase
+        .from("attendance")
+        .select("*")
+        .eq("lecture_id", id!)
+
+      const attendanceMap = new Map((attendance ?? []).map((a) => [a.student_id, a]))
+      const r = (enrollments ?? []).map((e: any) => ({
+        student: e.profiles,
+        record: attendanceMap.get(e.student_id) ?? null,
+      }))
+      setRoster(r)
+      setLoading(false)
+    }
+
+    fetchData()
+  }, [user, id])
+
+  if (!id) return <div className="py-20 text-center text-muted-foreground">No lecture ID provided.</div>
+  if (loading) return <PageLoader />
+  if (notFound) return <div className="py-20 text-center text-muted-foreground">Lecture not found.</div>
 
   return (
     <div className="flex flex-col gap-6">
@@ -80,10 +108,10 @@ export default async function LectureDetailPage({ params }: { params: Promise<{ 
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <LiveLectureRoster 
-            lectureId={id} 
-            status={lecture.status} 
-            initialRoster={roster as any} 
+          <LiveLectureRoster
+            lectureId={id}
+            status={lecture.status}
+            initialRoster={roster as any}
             courseName={(lecture as any).courses.name}
             dateString={`${formatDate(lecture.scheduled_start)}_${formatTime(lecture.scheduled_start)}`}
           />
@@ -98,4 +126,12 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "completed") return <Badge variant="secondary">Completed</Badge>
   if (status === "cancelled") return <Badge variant="destructive">Cancelled</Badge>
   return <Badge variant="outline">Scheduled</Badge>
+}
+
+export default function LectureDetailPage() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <LectureDetailContent />
+    </Suspense>
+  )
 }

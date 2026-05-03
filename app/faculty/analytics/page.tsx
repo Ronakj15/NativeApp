@@ -1,87 +1,102 @@
-import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
+"use client"
+
+import { useEffect, useState } from "react"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AnalyticsCharts } from "@/components/analytics-charts"
+import { PageLoader } from "@/components/page-loader"
 
-export default async function AnalyticsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect("/auth/login")
+export default function AnalyticsPage() {
+  const { user } = useAuth()
+  const [courseStats, setCourseStats] = useState<any[]>([])
+  const [dailyTrend, setDailyTrend] = useState<any[]>([])
+  const [overall, setOverall] = useState(0)
+  const [totalLectures, setTotalLectures] = useState(0)
+  const [totalCourses, setTotalCourses] = useState(0)
+  const [loading, setLoading] = useState(true)
 
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-  if (!profile || profile.role === "student") redirect("/student")
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
 
-  const { data: courses } = await supabase
-    .from("courses")
-    .select("*")
-    .order("created_at", { ascending: false })
+    async function fetchData() {
+      const { data: courses } = await supabase
+        .from("courses")
+        .select("*")
+        .order("created_at", { ascending: false })
+      setTotalCourses((courses ?? []).length)
 
-  const { data: lectures } = await supabase
-    .from("lectures")
-    .select("id, course_id, scheduled_start, status")
-    .order("scheduled_start", { ascending: false })
-    .limit(500)
+      const { data: lectures } = await supabase
+        .from("lectures")
+        .select("id, course_id, scheduled_start, status")
+        .order("scheduled_start", { ascending: false })
+        .limit(500)
 
-  const { data: attendance } = await supabase
-    .from("attendance")
-    .select("lecture_id, status")
+      const { data: attendance } = await supabase
+        .from("attendance")
+        .select("lecture_id, status")
 
-  const lectureMap = new Map();
-  for (const lec of lectures ?? []) {
-    lectureMap.set(lec.id, lec);
-  }
+      const lectureMap = new Map()
+      for (const lec of lectures ?? []) lectureMap.set(lec.id, lec)
 
-  const courseStatsMap = new Map();
-  for (const c of courses ?? []) {
-    courseStatsMap.set(c.id, { name: c.code, value: 0, total: 0, present: 0 });
-  }
+      const courseStatsMap = new Map()
+      for (const c of courses ?? []) courseStatsMap.set(c.id, { name: c.code, value: 0, total: 0, present: 0 })
 
-  const dayMap = new Map<string, { total: number; present: number }>()
-  for (const lec of lectures ?? []) {
-    if (lec.status !== "completed") continue
-    const day = new Date(lec.scheduled_start).toISOString().slice(0, 10)
-    if (!dayMap.has(day)) dayMap.set(day, { total: 0, present: 0 })
-  }
-
-  for (const a of attendance ?? []) {
-    const lec = lectureMap.get(a.lecture_id)
-    if (!lec) continue
-
-    if (lec.status === "completed") {
-      const courseStats = courseStatsMap.get(lec.course_id);
-      if (courseStats) {
-        courseStats.total += 1;
-        if (a.status === "present" || a.status === "late") {
-          courseStats.present += 1;
-        }
+      const dayMap = new Map<string, { total: number; present: number }>()
+      for (const lec of lectures ?? []) {
+        if (lec.status !== "completed") continue
+        const day = new Date(lec.scheduled_start).toISOString().slice(0, 10)
+        if (!dayMap.has(day)) dayMap.set(day, { total: 0, present: 0 })
       }
+
+      for (const a of attendance ?? []) {
+        const lec = lectureMap.get(a.lecture_id)
+        if (!lec) continue
+
+        if (lec.status === "completed") {
+          const cs = courseStatsMap.get(lec.course_id)
+          if (cs) {
+            cs.total += 1
+            if (a.status === "present" || a.status === "late") cs.present += 1
+          }
+        }
+
+        const day = new Date(lec.scheduled_start).toISOString().slice(0, 10)
+        const e = dayMap.get(day) ?? { total: 0, present: 0 }
+        e.total += 1
+        if (a.status === "present" || a.status === "late") e.present += 1
+        dayMap.set(day, e)
+      }
+
+      const cs = Array.from(courseStatsMap.values()).map(stats => {
+        stats.value = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0
+        return stats
+      })
+      setCourseStats(cs)
+
+      const dt = Array.from(dayMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(-14)
+        .map(([day, v]) => ({
+          day: day.slice(5),
+          pct: v.total > 0 ? Math.round((v.present / v.total) * 100) : 0,
+        }))
+      setDailyTrend(dt)
+
+      const tl = (lectures ?? []).filter((l) => l.status === "completed").length
+      setTotalLectures(tl)
+      const totalRecords = (attendance ?? []).length
+      const totalPresent = (attendance ?? []).filter((a) => a.status === "present" || a.status === "late").length
+      setOverall(totalRecords > 0 ? Math.round((totalPresent / totalRecords) * 100) : 0)
+
+      setLoading(false)
     }
 
-    const day = new Date(lec.scheduled_start).toISOString().slice(0, 10)
-    const e = dayMap.get(day) ?? { total: 0, present: 0 }
-    e.total += 1
-    if (a.status === "present" || a.status === "late") e.present += 1
-    dayMap.set(day, e)
-  }
-  const courseStats = Array.from(courseStatsMap.values()).map(stats => {
-    stats.value = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0;
-    return stats;
-  });
+    fetchData()
+  }, [user])
 
-  const dailyTrend = Array.from(dayMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-14)
-    .map(([day, v]) => ({
-      day: day.slice(5),
-      pct: v.total > 0 ? Math.round((v.present / v.total) * 100) : 0,
-    }))
-
-  const totalLectures = (lectures ?? []).filter((l) => l.status === "completed").length
-  const totalRecords = (attendance ?? []).length
-  const totalPresent = (attendance ?? []).filter((a) => a.status === "present" || a.status === "late").length
-  const overall = totalRecords > 0 ? Math.round((totalPresent / totalRecords) * 100) : 0
+  if (loading) return <PageLoader />
 
   return (
     <div className="space-y-6">
@@ -112,7 +127,7 @@ export default async function AnalyticsPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Active courses</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold">{(courses ?? []).length}</div>
+            <div className="text-3xl font-semibold">{totalCourses}</div>
           </CardContent>
         </Card>
       </div>

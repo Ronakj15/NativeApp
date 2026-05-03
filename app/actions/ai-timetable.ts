@@ -1,6 +1,4 @@
-"use server"
-
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/client"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
 // ── Available models ──
@@ -72,7 +70,7 @@ export type ParsedTimetable = {
 
 // ── Timetable Image Parser (Vision Pro) ──
 export async function parseTimetableImage(base64Image: string, mimeType: string): Promise<{ data?: ParsedTimetable; error?: string }> {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Not authenticated" }
 
@@ -81,8 +79,10 @@ export async function parseTimetableImage(base64Image: string, mimeType: string)
     return { error: "Only faculty can use the AI assistant" }
   }
 
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
-  if (!apiKey) return { error: "AI service not configured. Please add GOOGLE_GENERATIVE_AI_API_KEY to your .env.local file." }
+  // In client-side mode, we need to get the API key from an environment variable
+  // For Capacitor/native, this should be provided via a secure config
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_API_KEY
+  if (!apiKey) return { error: "AI service not configured. Please add NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_API_KEY to your .env.local file." }
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey)
@@ -110,7 +110,7 @@ export async function parseTimetableImage(base64Image: string, mimeType: string)
   } catch (err: any) {
     console.error("AI timetable parse error:", err)
     if (err.message?.includes("API key")) {
-      return { error: "Invalid API key. Please check your GOOGLE_GENERATIVE_AI_API_KEY." }
+      return { error: "Invalid API key. Please check your NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_API_KEY." }
     }
     if (err.message?.includes("429") || err.message?.includes("quota")) {
       return { error: "API rate limit reached. Please wait a minute and try again." }
@@ -125,7 +125,7 @@ export async function createCoursesAndLectures(
   metadata: ParsedTimetable["metadata"],
   weekStartDate: string,
 ) {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Not authenticated" }
 
@@ -211,11 +211,11 @@ export async function createCoursesAndLectures(
 
 // ── AI Chat (Flash — fast responses) ──
 export async function aiChat(message: string): Promise<{ reply?: string; error?: string }> {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Not authenticated" }
 
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_API_KEY
   if (!apiKey) return { error: "AI service not configured." }
 
   // Gather rich context
@@ -294,11 +294,11 @@ User message: ${message}`
 
 // ── Deep Attendance Analytics (Pro — thorough analysis) ──
 export async function aiAnalyze(courseId?: string): Promise<{ analysis?: string; error?: string }> {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Not authenticated" }
 
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_API_KEY
   if (!apiKey) return { error: "AI service not configured." }
 
   // Get all faculty data

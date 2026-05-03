@@ -1,18 +1,29 @@
+"use client"
+
+import { useEffect } from "react"
 import Link from "next/link"
-import { redirect } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Bluetooth, ScanFace, BarChart3, ShieldCheck, ArrowRight, GraduationCap, Presentation } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/server"
+import { useAuth } from "@/components/auth-provider"
+import { PageLoader } from "@/components/page-loader"
 
-export default async function HomePage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+export default function HomePage() {
+  const { user, profile, loading } = useAuth()
+  const router = useRouter()
 
-  if (user) {
-    redirect("/post-signin")
-  }
+  useEffect(() => {
+    if (!loading && user && profile) {
+      if (profile.role === "faculty" || profile.role === "admin") {
+        router.replace("/faculty")
+      } else {
+        router.replace("/student")
+      }
+    }
+  }, [loading, user, profile, router])
+
+  if (loading) return <PageLoader />
+  if (user) return <PageLoader message="Redirecting…" />
 
   return (
     <main className="min-h-screen bg-background">

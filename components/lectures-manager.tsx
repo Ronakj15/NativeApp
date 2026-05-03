@@ -142,8 +142,17 @@ export function LecturesManager({ lectures, courses }: { lectures: LectureRow[];
     if (error) {
       toast.error("Could not start lecture", { description: error.message })
     } else {
-      toast.success(siblingIds.length > 1 ? `Combined ${siblingIds.length} classes into live session.` : "Lecture is live. Please ensure your physical BLE beacon or native broadcaster app is active.")
+      toast.success(siblingIds.length > 1 ? `Combined ${siblingIds.length} classes into live session.` : "Lecture is live!")
       
+      // Start native BLE advertising
+      try {
+        const { startAdvertising, isNative } = await import("@/lib/ble")
+        if (isNative()) {
+          const ok = await startAdvertising(beaconId)
+          if (ok) toast.info(`📡 BLE broadcasting: ${beaconId}`)
+        }
+      } catch { /* BLE not critical */ }
+
       for (const siblingId of siblingIds) {
         const siblingLecture = lectures.find(l => l.id === siblingId)
         if (siblingLecture) {
@@ -205,6 +214,11 @@ export function LecturesManager({ lectures, courses }: { lectures: LectureRow[];
       toast.error("Could not end lecture", { description: error.message })
     } else {
       toast.success(siblingIds.length > 1 ? `Ended ${siblingIds.length} combined sessions — absentees recorded` : "Lecture ended — absentees recorded")
+      // Stop native BLE advertising
+      try {
+        const { stopAdvertising } = await import("@/lib/ble")
+        await stopAdvertising()
+      } catch { /* ignore */ }
     }
     
     setBusyId(null)
@@ -392,7 +406,7 @@ export function LecturesManager({ lectures, courses }: { lectures: LectureRow[];
                         </Button>
                       )}
                       <Button asChild size="sm" variant="ghost">
-                        <Link href={`/faculty/lecture/${l.id}`}>
+                        <Link href={`/faculty/lecture?id=${l.id}`}>
                           <ExternalLink className="size-4" />
                         </Link>
                       </Button>

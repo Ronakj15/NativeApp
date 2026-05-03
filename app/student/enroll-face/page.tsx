@@ -50,7 +50,7 @@ export default function EnrollFacePage() {
     setSaving(false)
     setEnrolled(true)
     setStarted(false)
-    router.refresh()
+    router.push("/student")
   }
 
   return (

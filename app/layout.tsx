@@ -1,18 +1,13 @@
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
 import { AnimatedBackground } from "@/components/animated-bg"
+import { AuthProvider } from "@/components/auth-provider"
 import "./globals.css"
-
-const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
 
 export const metadata: Metadata = {
   title: "Viso — Smart Attendance",
   description: "Beacon-verified, face-recognized attendance for modern campuses.",
-  generator: "v0.app",
 }
 
 export const viewport: Viewport = {
@@ -28,14 +23,20 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable} bg-background`}>
-      <body className="font-sans antialiased min-h-screen">
+    <html lang="en" suppressHydrationWarning className="bg-background">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@300..900&display=swap" rel="stylesheet" />
+      </head>
+      <body className="font-sans antialiased min-h-screen" style={{ fontFamily: "'Geist', sans-serif" }}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <AnimatedBackground />
-          {children}
-          <Toaster richColors closeButton />
+          <AuthProvider>
+            <AnimatedBackground />
+            {children}
+            <Toaster richColors closeButton />
+          </AuthProvider>
         </ThemeProvider>
-        {process.env.NODE_ENV === "production" && <Analytics />}
       </body>
     </html>
   )

@@ -1,24 +1,40 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
-import { createClient } from "@/lib/supabase/server"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
 import { formatDateTime } from "@/lib/utils-format"
 import { NotificationActions } from "@/components/notification-actions"
 import { SwipeableNotification } from "@/components/swipeable-notification"
 import { PushManager } from "@/components/push-manager"
 import { Bell, AlertTriangle, Info, CheckCircle2 } from "lucide-react"
+import { PageLoader } from "@/components/page-loader"
 
-export default async function NotificationsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+export default function NotificationsPage() {
+  const { user } = useAuth()
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const { data: notifications } = await supabase
-    .from("notifications")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
+
+    async function fetchData() {
+      const { data } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false })
+      setNotifications(data ?? [])
+      setLoading(false)
+    }
+
+    fetchData()
+  }, [user])
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="flex flex-col gap-6">
@@ -36,10 +52,10 @@ export default async function NotificationsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Inbox</CardTitle>
-          <CardDescription>{notifications?.length ?? 0} total</CardDescription>
+          <CardDescription>{notifications.length} total</CardDescription>
         </CardHeader>
         <CardContent>
-          {notifications && notifications.length ? (
+          {notifications.length ? (
             <ul className="divide-y divide-border">
               {notifications.map((n) => (
                 <SwipeableNotification key={n.id} notification={n}>

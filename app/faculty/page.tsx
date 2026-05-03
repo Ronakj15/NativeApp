@@ -1,68 +1,95 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Presentation, Users, BarChart3, Plus, ArrowRight, Radio, Clock, Calendar, CalendarClock, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { createClient } from "@/lib/supabase/server"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
 import { formatTime, pct } from "@/lib/utils-format"
 import { FacultyBroadcast } from "@/components/faculty-broadcast"
+import { PageLoader } from "@/components/page-loader"
 
-export default async function FacultyDashboardPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+export default function FacultyDashboardPage() {
+  const { user, profile } = useAuth()
+  const [myCourses, setMyCourses] = useState<any[]>([])
+  const [studentCount, setStudentCount] = useState(0)
+  const [todayLectures, setTodayLectures] = useState<any[]>([])
+  const [liveLectures, setLiveLectures] = useState<any[]>([])
+  const [upcomingLectures, setUpcomingLectures] = useState<any[]>([])
+  const [overallPct, setOverallPct] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
+
+    async function fetchData() {
+      const today = new Date()
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
+      const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString()
+
+      const { data: courses } = await supabase.from("courses").select("*").eq("faculty_id", user!.id)
+      setMyCourses(courses ?? [])
+      const courseIds = (courses ?? []).map((c) => c.id)
+
+      const { count } = await supabase
+        .from("enrollments")
+        .select("student_id", { count: "exact", head: true })
+        .in("course_id", courseIds.length ? courseIds : ["00000000-0000-0000-0000-000000000000"])
+      setStudentCount(count ?? 0)
+
+      const { data: todayL } = await supabase
+        .from("lectures")
+        .select("*, courses!inner(name, code)")
+        .eq("faculty_id", user!.id)
+        .gte("scheduled_start", start)
+        .lt("scheduled_start", end)
+        .order("scheduled_start", { ascending: true })
+      setTodayLectures(todayL ?? [])
+
+      const { data: liveL } = await supabase
+        .from("lectures")
+        .select("*, courses!inner(name, code)")
+        .eq("faculty_id", user!.id)
+        .eq("status", "live")
+      setLiveLectures(liveL ?? [])
+
+      const next7 = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      const { data: upcomingL } = await supabase
+        .from("lectures")
+        .select("*, courses!inner(name, code)")
+        .eq("faculty_id", user!.id)
+        .eq("status", "scheduled")
+        .gte("scheduled_start", new Date().toISOString())
+        .lte("scheduled_start", next7)
+        .order("scheduled_start", { ascending: true })
+        .limit(6)
+      setUpcomingLectures(upcomingL ?? [])
+
+      // Aggregate attendance
+      if (courseIds.length) {
+        const { data: attendanceRows } = await supabase
+          .from("attendance")
+          .select("status, lectures!inner(course_id, faculty_id)")
+          .eq("lectures.faculty_id", user!.id)
+
+        const totalA = attendanceRows?.length ?? 0
+        const presentA = attendanceRows?.filter((a) => a.status === "present" || a.status === "late").length ?? 0
+        setOverallPct(pct(presentA, totalA))
+      }
+
+      setLoading(false)
+    }
+
+    fetchData()
+  }, [user])
+
+  if (loading) return <PageLoader />
 
   const today = new Date()
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
-  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString()
-
-  const { data: myCourses } = await supabase.from("courses").select("*").eq("faculty_id", user.id)
-  const courseIds = (myCourses ?? []).map((c) => c.id)
-  const { count: studentCount } = await supabase
-    .from("enrollments")
-    .select("student_id", { count: "exact", head: true })
-    .in("course_id", courseIds.length ? courseIds : ["00000000-0000-0000-0000-000000000000"])
-
-  const { data: todayLectures } = await supabase
-    .from("lectures")
-    .select("*, courses!inner(name, code)")
-    .eq("faculty_id", user.id)
-    .gte("scheduled_start", start)
-    .lt("scheduled_start", end)
-    .order("scheduled_start", { ascending: true })
-
-  const { data: liveLectures } = await supabase
-    .from("lectures")
-    .select("*, courses!inner(name, code)")
-    .eq("faculty_id", user.id)
-    .eq("status", "live")
-
-  // Upcoming lectures (scheduled, after now, next 7 days)
-  const next7 = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: upcomingLectures } = await supabase
-    .from("lectures")
-    .select("*, courses!inner(name, code)")
-    .eq("faculty_id", user.id)
-    .eq("status", "scheduled")
-    .gte("scheduled_start", new Date().toISOString())
-    .lte("scheduled_start", next7)
-    .order("scheduled_start", { ascending: true })
-    .limit(6)
-
-  // Aggregate attendance for analytics ribbon
-  const { data: attendanceRows } = courseIds.length
-    ? await supabase
-        .from("attendance")
-        .select("status, lectures!inner(course_id, faculty_id)")
-        .eq("lectures.faculty_id", user.id)
-    : { data: [] as any[] }
-
-  const totalA = attendanceRows?.length ?? 0
-  const presentA = attendanceRows?.filter((a) => a.status === "present" || a.status === "late").length ?? 0
-  const overallPct = pct(presentA, totalA)
 
   return (
     <div className="flex flex-col gap-6">
@@ -81,7 +108,7 @@ export default async function FacultyDashboardPage() {
         </Button>
       </div>
 
-      {liveLectures && liveLectures.length > 0 && (
+      {liveLectures.length > 0 && (
         <Card className="border-success/40 bg-success/5">
           <CardContent className="p-5 flex flex-col md:flex-row items-start md:items-center gap-4">
             <div className="size-10 rounded-lg bg-success text-success-foreground grid place-items-center relative shrink-0">
@@ -99,7 +126,7 @@ export default async function FacultyDashboardPage() {
             <div className="flex gap-2 flex-wrap">
               {liveLectures.slice(0, 2).map((l: any) => (
                 <Button asChild key={l.id} size="sm" variant="secondary">
-                  <Link href={`/faculty/lecture/${l.id}`}>
+                  <Link href={`/faculty/lecture?id=${l.id}`}>
                     Open <ArrowRight className="size-3.5" />
                   </Link>
                 </Button>
@@ -110,13 +137,12 @@ export default async function FacultyDashboardPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Courses" value={myCourses?.length ?? 0} icon={Presentation} />
-        <StatCard label="Students" value={studentCount ?? 0} icon={Users} />
-        <StatCard label="Today's lectures" value={todayLectures?.length ?? 0} icon={Calendar} />
+        <StatCard label="Courses" value={myCourses.length} icon={Presentation} />
+        <StatCard label="Students" value={studentCount} icon={Users} />
+        <StatCard label="Today's lectures" value={todayLectures.length} icon={Calendar} />
         <StatCard label="Avg attendance" value={`${overallPct}%`} icon={BarChart3} />
       </div>
 
-      {/* Broadcast card + Upcoming lectures side by side */}
       <div className="grid gap-6 lg:grid-cols-2 items-start">
         <FacultyBroadcast />
 
@@ -141,7 +167,6 @@ export default async function FacultyDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {(() => {
-              // Group combined lectures (same created_at + scheduled_start)
               const grouped = Object.values(
                 (upcomingLectures ?? []).reduce((acc: Record<string, any>, l: any) => {
                   const key = `${l.created_at}_${l.scheduled_start}`
@@ -171,15 +196,13 @@ export default async function FacultyDashboardPage() {
                 const isTomorrow = dt.toDateString() === new Date(today.getTime() + 86400000).toDateString()
                 const dayLabel = isToday ? "Today" : isTomorrow ? "Tomorrow" : dt.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })
                 const isCombined = l.allCourses.length > 1
-                const displayName = isCombined
-                  ? `Combined (${l.allCourses.length} Courses)`
-                  : l.allCourses[0]?.name
+                const displayName = isCombined ? `Combined (${l.allCourses.length} Courses)` : l.allCourses[0]?.name
                 const displayCodes = l.allCourses.map((c: any) => c.code).join(", ")
 
                 return (
                   <Link
                     key={l.id}
-                    href={`/faculty/lecture/${l.id}`}
+                    href={`/faculty/lecture?id=${l.id}`}
                     className="flex items-center gap-3 p-3 rounded-xl border-2 border-foreground/10 hover:border-primary/40 bg-card hover:bg-primary/5 transition-all group"
                   >
                     <div className="flex flex-col items-center justify-center size-12 rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
@@ -232,7 +255,7 @@ export default async function FacultyDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {(() => {
-              const completed = (todayLectures ?? [])
+              const completed = todayLectures
                 .filter((l: any) => l.status === "completed")
                 .sort((a: any, b: any) => new Date(b.scheduled_start).getTime() - new Date(a.scheduled_start).getTime())
               const visible = completed.slice(0, 4)
@@ -251,7 +274,7 @@ export default async function FacultyDashboardPage() {
                   {visible.map((l: any) => (
                     <Link
                       key={l.id}
-                      href={`/faculty/lecture/${l.id}`}
+                      href={`/faculty/lecture?id=${l.id}`}
                       className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/40 transition"
                     >
                       <div className="size-10 rounded-md bg-primary/10 text-primary grid place-items-center shrink-0">
@@ -290,10 +313,10 @@ export default async function FacultyDashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Your courses</CardTitle>
-            <CardDescription>{myCourses?.length ?? 0} active</CardDescription>
+            <CardDescription>{myCourses.length} active</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {myCourses && myCourses.length ? (
+            {myCourses.length ? (
               myCourses.slice(0, 6).map((c) => (
                 <div
                   key={c.id}
@@ -325,15 +348,7 @@ export default async function FacultyDashboardPage() {
   )
 }
 
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string
-  value: string | number
-  icon: React.ComponentType<{ className?: string }>
-}) {
+function StatCard({ label, value, icon: Icon }: { label: string; value: string | number; icon: React.ComponentType<{ className?: string }> }) {
   return (
     <Card>
       <CardContent className="p-5 flex items-center justify-between gap-3">

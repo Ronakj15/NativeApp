@@ -1,48 +1,56 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { createClient } from "@/lib/supabase/server"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
 import { DAYS } from "@/lib/utils-format"
 import { CalendarDays } from "lucide-react"
+import { PageLoader } from "@/components/page-loader"
 
-export default async function TimetablePage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+export default function TimetablePage() {
+  const { user, profile } = useAuth()
+  const [byDay, setByDay] = useState<Map<number, any[]>>(new Map())
+  const [loading, setLoading] = useState(true)
 
-  const { data: userProfile } = await supabase
-    .from("profiles")
-    .select("department, year, division")
-    .eq("id", user.id)
-    .single()
+  useEffect(() => {
+    if (!user || !profile) return
+    const supabase = createClient()
 
-  let courseIds: string[] = []
-  
-  if (userProfile?.department && userProfile?.year && userProfile?.division) {
-    const { data: courses } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("department", userProfile.department)
-      .eq("year", userProfile.year)
-      .eq("division", userProfile.division)
-      
-    courseIds = courses?.map(c => c.id) ?? []
-  }
+    async function fetchData() {
+      let courseIds: string[] = []
 
-  const { data: slots } = courseIds.length
-    ? await supabase
-        .from("timetable_slots")
-        .select("*, courses!inner(name, code, color), profiles(full_name)")
-        .in("course_id", courseIds)
-        .order("start_time", { ascending: false })
-    : { data: [] as any[] }
+      if (profile!.department && profile!.year && profile!.division) {
+        const { data: courses } = await supabase
+          .from("courses")
+          .select("id")
+          .eq("department", profile!.department)
+          .eq("year", profile!.year)
+          .eq("division", profile!.division)
+        courseIds = courses?.map(c => c.id) ?? []
+      }
 
-  // Group by day_of_week (1..6 Mon-Sat)
-  const byDay = new Map<number, any[]>()
-  for (let d = 1; d <= 6; d++) byDay.set(d, [])
-  for (const s of slots ?? []) {
-    byDay.get(s.day_of_week)?.push(s)
-  }
+      const { data: slots } = courseIds.length
+        ? await supabase
+            .from("timetable_slots")
+            .select("*, courses!inner(name, code, color), profiles(full_name)")
+            .in("course_id", courseIds)
+            .order("start_time", { ascending: false })
+        : { data: [] as any[] }
+
+      const map = new Map<number, any[]>()
+      for (let d = 1; d <= 6; d++) map.set(d, [])
+      for (const s of slots ?? []) {
+        map.get(s.day_of_week)?.push(s)
+      }
+      setByDay(map)
+      setLoading(false)
+    }
+
+    fetchData()
+  }, [user, profile])
+
+  if (loading) return <PageLoader />
 
   return (
     <div className="flex flex-col gap-6">

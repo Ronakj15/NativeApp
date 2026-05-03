@@ -1,21 +1,35 @@
-import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
+"use client"
+
+import { useEffect, useState } from "react"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
 import { ProfileForm } from "@/components/profile-form"
 import { NotificationPreferencesForm } from "@/components/notification-preferences-form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { PageLoader } from "@/components/page-loader"
 
-export default async function FacultyProfilePage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect("/auth/login")
+export default function FacultyProfilePage() {
+  const { user } = useAuth()
+  const [profile, setProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-  if (!profile || profile.role === "student") redirect("/student")
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
 
-  const initials = (profile?.full_name || user.email || "U").slice(0, 2).toUpperCase()
+    async function fetchData() {
+      const { data } = await supabase.from("profiles").select("*").eq("id", user!.id).single()
+      setProfile(data)
+      setLoading(false)
+    }
+
+    fetchData()
+  }, [user])
+
+  if (loading || !profile) return <PageLoader />
+
+  const initials = (profile?.full_name || user?.email || "U").slice(0, 2).toUpperCase()
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -32,7 +46,7 @@ export default async function FacultyProfilePage() {
             </Avatar>
             <div>
               <CardTitle className="text-xl">{profile?.full_name || "Faculty"}</CardTitle>
-              <p className="text-sm text-muted-foreground mt-0.5">{user.email}</p>
+              <p className="text-sm text-muted-foreground mt-0.5">{user?.email}</p>
             </div>
           </div>
         </CardHeader>

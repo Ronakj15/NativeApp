@@ -1,0 +1,11 @@
+// Middleware disabled for static export / Capacitor native app
+// Auth guards are now handled client-side via AuthProvider
+import { NextResponse, type NextRequest } from "next/server"
+
+export function middleware(_request: NextRequest) {
+  return NextResponse.next()
+}
+
+export const config = {
+  matcher: [],
+}

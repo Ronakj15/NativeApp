@@ -1,89 +1,99 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ScanFace, CalendarDays, TrendingUp, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { createClient } from "@/lib/supabase/server"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
 import { formatTime } from "@/lib/utils-format"
 import { AttendanceRadar } from "@/components/attendance-radar"
+import { PageLoader } from "@/components/page-loader"
 
-export default async function StudentDashboardPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+export default function StudentDashboardPage() {
+  const { user, profile } = useAuth()
+  const [lectures, setLectures] = useState<any[]>([])
+  const [totals, setTotals] = useState({ total: 0, present: 0, late: 0, absent: 0 })
+  const [courseStats, setCourseStats] = useState<any[]>([])
+  const [overallPct, setOverallPct] = useState(0)
+  const [faceEnrolled, setFaceEnrolled] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
 
-  // Today's lectures via enrollments
-  const { data: enrollments } = await supabase.from("enrollments").select("course_id").eq("student_id", user.id)
-  const courseIds = enrollments?.map((e) => e.course_id) ?? []
+    async function fetchData() {
+      // Profile face check
+      setFaceEnrolled(!!profile?.face_descriptor)
 
-  const today = new Date()
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
-  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString()
+      // Today's lectures via enrollments
+      const { data: enrollments } = await supabase.from("enrollments").select("course_id").eq("student_id", user!.id)
+      const courseIds = enrollments?.map((e) => e.course_id) ?? []
 
-  const { data: lectures } = courseIds.length
-    ? await supabase
-        .from("lectures")
-        .select("*, courses!inner(name, code, color)")
-        .in("course_id", courseIds)
-        .gte("scheduled_start", start)
-        .lt("scheduled_start", end)
-        .order("scheduled_start", { ascending: true })
-    : { data: [] as any[] }
+      const today = new Date()
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
+      const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString()
 
-  // Attendance stats
-  const { data: attendance } = await supabase
-    .from("attendance")
-    .select("status, lecture_id, lectures!inner(course_id)")
-    .eq("student_id", user.id)
+      if (courseIds.length) {
+        const { data } = await supabase
+          .from("lectures")
+          .select("*, courses!inner(name, code, color)")
+          .in("course_id", courseIds)
+          .gte("scheduled_start", start)
+          .lt("scheduled_start", end)
+          .order("scheduled_start", { ascending: true })
+        setLectures(data ?? [])
+      }
 
-  const totals = {
-    total: attendance?.length ?? 0,
-    present: 0,
-    late: 0,
-    absent: 0,
-  }
+      // Attendance stats
+      const { data: attendance } = await supabase
+        .from("attendance")
+        .select("status, lecture_id, lectures!inner(course_id)")
+        .eq("student_id", user!.id)
 
-  const courseCounts = new Map()
+      const t = { total: attendance?.length ?? 0, present: 0, late: 0, absent: 0 }
+      const courseCounts = new Map()
 
-  if (attendance) {
-    for (const a of attendance) {
-      if (a.status === "present") totals.present++
-      else if (a.status === "late") totals.late++
-      else if (a.status === "absent") totals.absent++
+      if (attendance) {
+        for (const a of attendance) {
+          if (a.status === "present") t.present++
+          else if (a.status === "late") t.late++
+          else if (a.status === "absent") t.absent++
 
-      const cId = a.lectures?.course_id
-      if (cId != null) {
-        let counts = courseCounts.get(cId)
-        if (!counts) {
-          counts = { present: 0, total: 0 }
-          courseCounts.set(cId, counts)
-        }
-        counts.total++
-        if (a.status === "present" || a.status === "late") {
-          counts.present++
+          const cId = (a as any).lectures?.course_id
+          if (cId != null) {
+            let counts = courseCounts.get(cId)
+            if (!counts) { counts = { present: 0, total: 0 }; courseCounts.set(cId, counts) }
+            counts.total++
+            if (a.status === "present" || a.status === "late") counts.present++
+          }
         }
       }
+      setTotals(t)
+      setOverallPct(t.total ? Math.round(((t.present + t.late) / t.total) * 100) : 0)
+
+      // Per-course
+      if (courseIds.length) {
+        const { data: courses } = await supabase.from("courses").select("*").in("id", courseIds)
+        const stats = (courses ?? []).map((c) => {
+          const counts = courseCounts.get(c.id) || { present: 0, total: 0 }
+          const pct = counts.total ? Math.round((counts.present / counts.total) * 100) : 0
+          return { course: c, present: counts.present, total: counts.total, pct }
+        })
+        setCourseStats(stats)
+      }
+
+      setLoading(false)
     }
-  }
-  const overallPct = totals.total ? Math.round(((totals.present + totals.late) / totals.total) * 100) : 0
 
-  // Per-course
-  const { data: courses } = courseIds.length
-    ? await supabase.from("courses").select("*").in("id", courseIds)
-    : { data: [] as any[] }
+    fetchData()
+  }, [user, profile])
 
-  const courseStats = (courses ?? []).map((c) => {
-    const counts = courseCounts.get(c.id) || { present: 0, total: 0 }
-    const pct = counts.total ? Math.round((counts.present / counts.total) * 100) : 0
-    return { course: c, present: counts.present, total: counts.total, pct }
-  })
-
-  const faceEnrolled = !!profile?.face_descriptor
+  if (loading) return <PageLoader />
 
   return (
     <div className="flex flex-col gap-6">
@@ -135,7 +145,7 @@ export default async function StudentDashboardPage() {
         <Card className="glass brutal rounded-2xl">
           <CardHeader className="pb-2">
             <CardDescription className="font-mono uppercase tracking-widest text-[11px]">Today</CardDescription>
-            <CardTitle className="text-4xl font-bold tracking-tight">{lectures?.length ?? 0}</CardTitle>
+            <CardTitle className="text-4xl font-bold tracking-tight">{lectures.length}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">Lectures scheduled today</p>
@@ -168,7 +178,7 @@ export default async function StudentDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {(() => {
-              const completed = (lectures ?? [])
+              const completed = lectures
                 .filter((l: any) => l.status === "completed")
                 .sort((a: any, b: any) => new Date(b.scheduled_start).getTime() - new Date(a.scheduled_start).getTime())
               const visible = completed.slice(0, 4)

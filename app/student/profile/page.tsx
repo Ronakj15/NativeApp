@@ -1,20 +1,36 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ScanFace, CheckCircle2, AlertCircle } from "lucide-react"
-import { createClient } from "@/lib/supabase/server"
+import { useAuth } from "@/components/auth-provider"
+import { createClient } from "@/lib/supabase/client"
 import { ProfileForm } from "@/components/profile-form"
 import { NotificationPreferencesForm } from "@/components/notification-preferences-form"
 import { formatDateTime } from "@/lib/utils-format"
+import { PageLoader } from "@/components/page-loader"
 
-export default async function StudentProfilePage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-  if (!profile) return null
+export default function StudentProfilePage() {
+  const { user } = useAuth()
+  const [profile, setProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
+
+    async function fetchData() {
+      const { data } = await supabase.from("profiles").select("*").eq("id", user!.id).single()
+      setProfile(data)
+      setLoading(false)
+    }
+
+    fetchData()
+  }, [user])
+
+  if (loading || !profile) return <PageLoader />
 
   const enrolled = !!profile.face_descriptor
 
