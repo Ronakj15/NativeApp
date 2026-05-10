@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import type { Profile } from "@/lib/types"
 
-export function ProfileForm({ profile, role }: { profile: Profile; role: "student" | "faculty" }) {
+export function ProfileForm({ profile, role, onProfileUpdated }: { profile: Profile; role: "student" | "faculty"; onProfileUpdated?: () => void }) {
   const router = useRouter()
   const [fullName, setFullName] = useState(profile.full_name ?? "")
   const [phone, setPhone] = useState(profile.phone ?? "")
@@ -58,7 +58,7 @@ export function ProfileForm({ profile, role }: { profile: Profile; role: "studen
     } else {
       setAvatarUrl(data.publicUrl)
       toast.success("Avatar updated successfully")
-      router.refresh()
+      onProfileUpdated?.()
     }
     
     setUploadingAvatar(false)
@@ -89,7 +89,7 @@ export function ProfileForm({ profile, role }: { profile: Profile; role: "studen
     } else {
       setAvatarUrl("")
       toast.success("Avatar removed")
-      router.refresh()
+      onProfileUpdated?.()
     }
     setUploadingAvatar(false)
   }
@@ -122,7 +122,7 @@ export function ProfileForm({ profile, role }: { profile: Profile; role: "studen
     }
     toast.success("Profile updated")
     setSaving(false)
-    router.refresh()
+    onProfileUpdated?.()
   }
 
   return (

@@ -22,8 +22,9 @@ import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import type { Course } from "@/lib/types"
 
-export function CoursesManager({ courses }: { courses: Course[] }) {
+export function CoursesManager({ courses: initialCourses }: { courses: Course[] }) {
   const router = useRouter()
+  const [courses, setCourses] = useState(initialCourses)
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [code, setCode] = useState("")
@@ -90,9 +91,16 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
       return
     }
     toast.success(editingCourseId ? "Course updated" : "Course created")
+    // Update local state
+    if (editingCourseId) {
+      setCourses(prev => prev.map(c => c.id === editingCourseId ? { ...c, ...payload } : c))
+    } else {
+      // Re-fetch to get the real ID
+      const { data: refreshed } = await supabase.from("courses").select("*").order("created_at", { ascending: false })
+      if (refreshed) setCourses(refreshed)
+    }
     setSaving(false)
     setOpen(false)
-    router.refresh()
   }
 
   async function deleteCourse(id: string) {
@@ -103,7 +111,7 @@ export function CoursesManager({ courses }: { courses: Course[] }) {
       toast.error("Could not delete course", { description: error.message })
     } else {
       toast.success("Course deleted")
-      router.refresh()
+      setCourses(prev => prev.filter(c => c.id !== id))
     }
     setDeletingId(null)
   }

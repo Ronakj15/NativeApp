@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { createClient } from "@/lib/supabase/client"
 import { ProfileForm } from "@/components/profile-form"
@@ -14,18 +14,17 @@ export default function FacultyProfilePage() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     if (!user) return
     const supabase = createClient()
-
-    async function fetchData() {
-      const { data } = await supabase.from("profiles").select("*").eq("id", user!.id).single()
-      setProfile(data)
-      setLoading(false)
-    }
-
-    fetchData()
+    const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+    setProfile(data)
+    setLoading(false)
   }, [user])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   if (loading || !profile) return <PageLoader />
 
@@ -51,7 +50,7 @@ export default function FacultyProfilePage() {
           </div>
         </CardHeader>
         <CardContent>
-          <ProfileForm profile={profile} role="faculty" />
+          <ProfileForm profile={profile} role="faculty" onProfileUpdated={fetchData} />
         </CardContent>
       </Card>
 
@@ -59,3 +58,4 @@ export default function FacultyProfilePage() {
     </div>
   )
 }
+

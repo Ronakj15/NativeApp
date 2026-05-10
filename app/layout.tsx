@@ -3,6 +3,7 @@ import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
 import { AnimatedBackground } from "@/components/animated-bg"
 import { AuthProvider } from "@/components/auth-provider"
+import { PermissionsGate } from "@/components/permissions-gate"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -32,9 +33,11 @@ export default function RootLayout({
       <body className="font-sans antialiased min-h-screen" style={{ fontFamily: "'Geist', sans-serif" }}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AuthProvider>
-            <AnimatedBackground />
-            {children}
-            <Toaster richColors closeButton />
+            <PermissionsGate>
+              <AnimatedBackground />
+              {children}
+              <Toaster richColors closeButton />
+            </PermissionsGate>
           </AuthProvider>
         </ThemeProvider>
       </body>

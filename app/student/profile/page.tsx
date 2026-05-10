@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,18 +17,17 @@ export default function StudentProfilePage() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     if (!user) return
     const supabase = createClient()
-
-    async function fetchData() {
-      const { data } = await supabase.from("profiles").select("*").eq("id", user!.id).single()
-      setProfile(data)
-      setLoading(false)
-    }
-
-    fetchData()
+    const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+    setProfile(data)
+    setLoading(false)
   }, [user])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   if (loading || !profile) return <PageLoader />
 
@@ -47,7 +46,7 @@ export default function StudentProfilePage() {
           <CardDescription>This appears on attendance reports.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ProfileForm profile={profile} role="student" />
+          <ProfileForm profile={profile} role="student" onProfileUpdated={fetchData} />
         </CardContent>
       </Card>
 

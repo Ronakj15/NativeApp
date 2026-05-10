@@ -26,8 +26,9 @@ const NOTIF_TYPES = [
   { value: "general",        label: "ℹ️ General",         desc: "Miscellaneous notice" },
 ]
 
-export function FacultyNotificationComposer({ broadcasts = [] }: { broadcasts?: any[] }) {
+export function FacultyNotificationComposer({ broadcasts: initialBroadcasts = [] }: { broadcasts?: any[] }) {
   const router = useRouter()
+  const [broadcasts, setBroadcasts] = useState(initialBroadcasts)
   const [department, setDepartment] = useState("ALL")
   const [year, setYear] = useState("ALL")
   const [division, setDivision] = useState("ALL")
@@ -46,7 +47,7 @@ export function FacultyNotificationComposer({ broadcasts = [] }: { broadcasts?: 
     if (result.error) toast.error("Failed to delete", { description: result.error })
     else {
       toast.success("Notification deleted successfully")
-      router.refresh()
+      setBroadcasts(prev => prev.filter(b => b.id !== id))
     }
     setDeletingId(null)
   }
@@ -73,9 +74,19 @@ export function FacultyNotificationComposer({ broadcasts = [] }: { broadcasts?: 
     } else {
       toast.success(`Notification sent to ${result.count} student${result.count === 1 ? "" : "s"}!`)
       setLastResult({ count: result.count! })
+      // Add the new broadcast to the local list
+      setBroadcasts(prev => [{
+        id: crypto.randomUUID(),
+        title: title.trim(),
+        body: body.trim(),
+        department: department === "ALL" ? null : department,
+        year: year === "ALL" ? null : Number(year),
+        division: division === "ALL" ? null : division,
+        notif_type: notifType,
+        created_at: new Date().toISOString(),
+      }, ...prev])
       setTitle("")
       setBody("")
-      router.refresh()
     }
     setSending(false)
   }

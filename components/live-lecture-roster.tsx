@@ -131,7 +131,7 @@ export function LiveLectureRoster({
     setBusyId(null)
   }
 
-  function exportCsv() {
+  async function exportCsv() {
     const rows = [
       ["Roll", "Name", "Email", "Status", "Method", "Marked at"],
       ...roster.map((r) => [
@@ -144,15 +144,42 @@ export function LiveLectureRoster({
       ]),
     ]
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n")
+    
+    const safeCourseName = (courseName || "attendance").replace(/[^a-z0-9]/gi, '_').toLowerCase()
+    const safeDate = dateString ? dateString.replace(/[^a-z0-9]/gi, '_') : lectureId.slice(0, 8)
+    const fileName = `${safeCourseName}_${safeDate}.csv`
+
+    // On native platforms, use Capacitor Share API (a.click() doesn't work in WebViews)
+    try {
+      const { Capacitor } = await import("@capacitor/core")
+      if (Capacitor.isNativePlatform()) {
+        const { Filesystem, Directory } = await import("@capacitor/filesystem")
+        const { Share } = await import("@capacitor/share")
+        
+        // Write to cache directory
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: btoa(unescape(encodeURIComponent(csv))),
+          directory: Directory.Cache,
+        })
+        
+        // Share the file
+        await Share.share({
+          title: fileName,
+          url: result.uri,
+        })
+        return
+      }
+    } catch {
+      // Fallback to web approach if Capacitor modules not available
+    }
+
+    // Web fallback — standard blob download
     const blob = new Blob([csv], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    
-    const safeCourseName = (courseName || "attendance").replace(/[^a-z0-9]/gi, '_').toLowerCase()
-    const safeDate = dateString ? dateString.replace(/[^a-z0-9]/gi, '_') : lectureId.slice(0, 8)
-    a.download = `${safeCourseName}_${safeDate}.csv`
-    
+    a.download = fileName
     a.click()
     URL.revokeObjectURL(url)
   }

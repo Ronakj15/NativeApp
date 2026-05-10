@@ -15,62 +15,69 @@ export function AnalyticsCharts({
   dailyTrend: DailyPoint[]
 }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle>Attendance by course</CardTitle>
+          <CardTitle className="text-base md:text-lg">Attendance by course</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-2 sm:px-6">
           {courseStats.length === 0 ? (
             <p className="text-sm text-muted-foreground py-12 text-center">No course data yet.</p>
           ) : (
-            <ChartContainer
-              config={{
-                value: { label: "Attendance %", color: "var(--chart-1)" },
-              }}
-              className="h-[300px] w-full"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={courseStats}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={12} />
-                  <YAxis stroke="var(--muted-foreground)" fontSize={12} domain={[0, 100]} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="value" fill="var(--color-value)" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <ChartContainer
+                config={{
+                  value: { label: "Attendance %", color: "var(--chart-1)" },
+                }}
+                className="h-[250px] sm:h-[300px] w-full"
+                style={{ minWidth: Math.max(300, courseStats.length * 60) }}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={courseStats} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={10} tick={{ fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={50} />
+                    <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={[0, 100]} width={35} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="value" fill="var(--color-value)" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </div>
           )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Daily attendance trend</CardTitle>
+          <CardTitle className="text-base md:text-lg">Daily attendance trend</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-2 sm:px-6">
           {dailyTrend.length === 0 ? (
             <p className="text-sm text-muted-foreground py-12 text-center">No completed lectures yet.</p>
           ) : (
-            <ChartContainer
-              config={{
-                pct: { label: "Attendance %", color: "var(--chart-2)" },
-              }}
-              className="h-[300px] w-full"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dailyTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="day" stroke="var(--muted-foreground)" fontSize={12} />
-                  <YAxis stroke="var(--muted-foreground)" fontSize={12} domain={[0, 100]} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Line type="monotone" dataKey="pct" stroke="var(--color-pct)" strokeWidth={2} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartContainer>
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <ChartContainer
+                config={{
+                  pct: { label: "Attendance %", color: "var(--chart-2)" },
+                }}
+                className="h-[250px] sm:h-[300px] w-full"
+                style={{ minWidth: Math.max(300, dailyTrend.length * 40) }}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dailyTrend} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="day" stroke="var(--muted-foreground)" fontSize={10} tick={{ fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={50} />
+                    <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={[0, 100]} width={35} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line type="monotone" dataKey="pct" stroke="var(--color-pct)" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </div>
           )}
         </CardContent>
       </Card>
     </div>
   )
 }
+
