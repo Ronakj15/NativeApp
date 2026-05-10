@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
 type CourseStat = { name: string; value: number; total: number; present: number }
 type DailyPoint = { day: string; pct: number }
@@ -32,15 +32,13 @@ export function AnalyticsCharts({
                 className="h-[250px] sm:h-[300px] w-full"
                 style={{ minWidth: Math.max(300, courseStats.length * 60) }}
               >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={courseStats} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={10} tick={{ fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={50} />
-                    <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={[0, 100]} width={35} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="value" fill="var(--color-value)" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <BarChart data={courseStats} margin={{ top: 5, right: 10, left: -15, bottom: 5 }} accessibilityLayer={false}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={10} tick={{ fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={50} />
+                  <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={[0, 100]} width={35} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="value" fill="var(--color-value)" radius={[6, 6, 0, 0]} />
+                </BarChart>
               </ChartContainer>
             </div>
           )}
@@ -63,15 +61,13 @@ export function AnalyticsCharts({
                 className="h-[250px] sm:h-[300px] w-full"
                 style={{ minWidth: Math.max(300, dailyTrend.length * 40) }}
               >
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={dailyTrend} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="day" stroke="var(--muted-foreground)" fontSize={10} tick={{ fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={50} />
-                    <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={[0, 100]} width={35} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line type="monotone" dataKey="pct" stroke="var(--color-pct)" strokeWidth={2} dot={{ r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <LineChart data={dailyTrend} margin={{ top: 5, right: 10, left: -15, bottom: 5 }} accessibilityLayer={false}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="day" stroke="var(--muted-foreground)" fontSize={10} tick={{ fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={50} />
+                  <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={[0, 100]} width={35} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Line type="monotone" dataKey="pct" stroke="var(--color-pct)" strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
               </ChartContainer>
             </div>
           )}
@@ -80,4 +76,3 @@ export function AnalyticsCharts({
     </div>
   )
 }
-
