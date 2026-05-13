@@ -23,7 +23,7 @@ let initialized = false
 async function ensureInitialized() {
   if (initialized) return
   try {
-    await BleClient.initialize({ androidNeverForLocation: false })
+    await BleClient.initialize({ androidNeverForLocation: true })
     initialized = true
   } catch (err) {
     console.error("[BLE] init failed:", err)
