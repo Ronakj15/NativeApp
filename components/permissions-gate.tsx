@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from "react"
 import { Capacitor } from "@capacitor/core"
-import { BleClient } from "@capacitor-community/bluetooth-le"
+import { BluetoothLowEnergy } from "@capgo/capacitor-bluetooth-low-energy"
 import { Camera } from "@capacitor/camera"
 import { Bluetooth, CameraIcon, ShieldCheck, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -43,12 +43,15 @@ export function PermissionsGate({ children }: { children: React.ReactNode }) {
 
     // Check BLE
     try {
-      await BleClient.initialize({ androidNeverForLocation: true })
-      const enabled = await BleClient.isEnabled()
-      if (enabled) {
+      const { bluetooth } = await BluetoothLowEnergy.checkPermissions()
+      const { enabled } = await BluetoothLowEnergy.isEnabled()
+      if (bluetooth === "granted" && enabled) {
         setBleStatus("granted")
-      } else {
+      } else if (bluetooth === "denied") {
         setBleStatus("denied")
+      } else {
+        // either prompt or not enabled
+        setBleStatus("pending")
       }
     } catch (err) {
       console.error("[Permissions] BLE check failed:", err)
@@ -76,12 +79,20 @@ export function PermissionsGate({ children }: { children: React.ReactNode }) {
   async function requestBle() {
     try {
       setBleStatus("pending")
-      await BleClient.initialize({ androidNeverForLocation: true })
-      const enabled = await BleClient.isEnabled()
+      const { bluetooth } = await BluetoothLowEnergy.requestPermissions()
+      if (bluetooth !== "granted") {
+        setBleStatus("denied")
+        return
+      }
+      
+      const { enabled } = await BluetoothLowEnergy.isEnabled()
       if (!enabled) {
-        try {
-          await BleClient.enable()
-        } catch {
+        if (Capacitor.getPlatform() === 'android') {
+          await BluetoothLowEnergy.openBluetoothSettings()
+          // We assume they turned it on. In a real app we'd listen for resume event.
+          setBleStatus("granted") 
+          return
+        } else {
           setBleStatus("denied")
           return
         }

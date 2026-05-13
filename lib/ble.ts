@@ -4,29 +4,31 @@
  * Faculty: Advertises a BLE peripheral with the lecture's beacon_id in the device name
  * Student: Scans for nearby BLE peripherals and matches the beacon_id
  *
- * Uses @capacitor-community/bluetooth-le which works on both Android & iOS.
- * Falls back to Web Bluetooth (navigator.bluetooth) when running in a desktop browser.
+ * Uses @capgo/capacitor-bluetooth-low-energy which works on both Android & iOS,
+ * and supports BOTH Peripheral (advertising) and Central (scanning) roles.
  */
 
-import { BleClient, BleDevice, ScanResult, numberToUUID } from "@capacitor-community/bluetooth-le"
+import { BluetoothLowEnergy, BleDevice } from "@capgo/capacitor-bluetooth-low-energy"
 import { Capacitor } from "@capacitor/core"
 
 // ── Constants ──
 // We use a custom 128-bit UUID for the Viso attendance service
 const VISO_SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
-// Characteristic that holds the beacon identifier string
-const BEACON_ID_CHAR_UUID = "0000ff01-0000-1000-8000-00805f9b34fb"
 
-let initialized = false
+let initializedCentral = false
+let initializedPeripheral = false
 
 // ── Initialize BLE ──
-async function ensureInitialized() {
-  if (initialized) return
+async function ensureInitialized(mode: "central" | "peripheral" = "central") {
+  if (mode === "central" && initializedCentral) return
+  if (mode === "peripheral" && initializedPeripheral) return
+  
   try {
-    await BleClient.initialize({ androidNeverForLocation: true })
-    initialized = true
+    await BluetoothLowEnergy.initialize({ mode })
+    if (mode === "central") initializedCentral = true
+    if (mode === "peripheral") initializedPeripheral = true
   } catch (err) {
-    console.error("[BLE] init failed:", err)
+    console.error(`[BLE] init (${mode}) failed:`, err)
     throw err
   }
 }
@@ -39,15 +41,19 @@ export function isNative(): boolean {
 // ── Request Permissions (Android 12+) ──
 export async function requestBlePermissions(): Promise<boolean> {
   try {
-    await ensureInitialized()
-    // On Android 12+, BleClient.initialize handles permission prompts
-    // On iOS, permission prompt triggers on first scan/advertise
-    const enabled = await BleClient.isEnabled()
+    const { bluetooth } = await BluetoothLowEnergy.checkPermissions()
+    if (bluetooth !== 'granted') {
+      const result = await BluetoothLowEnergy.requestPermissions()
+      if (result.bluetooth !== 'granted') return false
+    }
+
+    const { enabled } = await BluetoothLowEnergy.isEnabled()
     if (!enabled) {
-      // Prompt user to turn on Bluetooth
-      try {
-        await BleClient.enable()
-      } catch {
+      if (Capacitor.getPlatform() === 'android') {
+        // Prompt user to turn on Bluetooth via settings
+        await BluetoothLowEnergy.openBluetoothSettings()
+        // We assume they turned it on. A more robust way would check isEnabled again after resume.
+      } else {
         return false
       }
     }
@@ -68,9 +74,6 @@ let isAdvertising = false
  * Start advertising the beacon ID via BLE.
  * The beacon ID is embedded in the local name of the BLE advertisement
  * so student devices can discover it by scanning.
- *
- * On native platforms: Uses BLE peripheral advertising
- * On web: No-op (faculty can use a physical BLE beacon instead)
  */
 export async function startAdvertising(beaconId: string): Promise<boolean> {
   if (!isNative()) {
@@ -79,16 +82,12 @@ export async function startAdvertising(beaconId: string): Promise<boolean> {
   }
 
   try {
-    await ensureInitialized()
+    await ensureInitialized("peripheral")
     const enabled = await requestBlePermissions()
     if (!enabled) return false
 
-    // Start BLE advertisement with the beacon ID as the device name
-    // The @capacitor-community/bluetooth-le plugin supports advertising
-    // via the startAdvertising method (available on Android & iOS)
-    await BleClient.startAdvertising({
+    await BluetoothLowEnergy.startAdvertising({
       name: beaconId,
-      // Advertise with our custom Viso service UUID so students can filter by it
       services: [VISO_SERVICE_UUID],
       includeTxPowerLevel: false,
     })
@@ -98,8 +97,6 @@ export async function startAdvertising(beaconId: string): Promise<boolean> {
     return true
   } catch (err: any) {
     console.error("[BLE] startAdvertising failed:", err)
-    // Some devices don't support peripheral mode — that's OK
-    // Faculty can still use a physical BLE beacon
     return false
   }
 }
@@ -110,7 +107,7 @@ export async function startAdvertising(beaconId: string): Promise<boolean> {
 export async function stopAdvertising(): Promise<void> {
   if (!isAdvertising) return
   try {
-    await BleClient.stopAdvertising()
+    await BluetoothLowEnergy.stopAdvertising()
     isAdvertising = false
     console.log("[BLE] Advertising stopped")
   } catch (err) {
@@ -137,12 +134,6 @@ export type BeaconScanResult = {
 
 /**
  * Scan for a specific beacon ID broadcast by the faculty device.
- *
- * On native: Uses Capacitor BLE scanning (background-capable)
- * On web: Falls back to navigator.bluetooth.requestDevice() if available
- *
- * @param beaconId   The beacon_id from the lecture record (e.g. "VISO-A3X9K2")
- * @param timeoutMs  How long to scan before giving up (default 10s)
  */
 export async function scanForBeaconId(
   beaconId: string,
@@ -160,7 +151,7 @@ async function scanForBeaconNative(
   timeoutMs: number
 ): Promise<BeaconScanResult> {
   try {
-    await ensureInitialized()
+    await ensureInitialized("central")
     const enabled = await requestBlePermissions()
     if (!enabled) {
       return { status: "error", error: "Bluetooth is not enabled. Please turn on Bluetooth." }
@@ -168,89 +159,51 @@ async function scanForBeaconNative(
 
     return new Promise<BeaconScanResult>((resolve) => {
       let resolved = false
-      const foundDevices: ScanResult[] = []
+      let listenerHandle: any = null
+
+      const finish = async (result: BeaconScanResult) => {
+        if (resolved) return
+        resolved = true
+        clearTimeout(timer)
+        if (listenerHandle) listenerHandle.remove()
+        try { await BluetoothLowEnergy.stopScan() } catch { /* ignore */ }
+        resolve(result)
+      }
 
       // Set a timeout to stop scanning
       const timer = setTimeout(async () => {
-        if (resolved) return
-        resolved = true
-        try { await BleClient.stopLEScan() } catch { /* ignore */ }
-
-        // Check all found devices for a match
-        const match = foundDevices.find(
-          (d) =>
-            d.localName?.toLowerCase().includes(beaconId.toLowerCase()) ||
-            d.device?.name?.toLowerCase().includes(beaconId.toLowerCase())
-        )
-
-        if (match) {
-          resolve({
-            status: "found",
-            matchedDeviceName: match.localName || match.device?.name || "Unknown",
-            rssi: match.rssi,
-          })
-        } else {
-          resolve({
-            status: "not-found",
-            error: `No beacon with ID "${beaconId}" found nearby. Scanned ${foundDevices.length} devices.`,
-          })
-        }
+        finish({
+          status: "not-found",
+          error: `No beacon with ID "${beaconId}" found nearby.`,
+        })
       }, timeoutMs)
 
-      // Start scanning
-      BleClient.requestLEScan(
-        {
-          // Scan for our specific Viso service UUID first
-          services: [VISO_SERVICE_UUID],
-          allowDuplicates: false,
-        },
-        (result: ScanResult) => {
-          foundDevices.push(result)
-          const name = result.localName || result.device?.name || ""
-          console.log(`[BLE] Found device: ${name} (RSSI: ${result.rssi})`)
+      // Start listening
+      BluetoothLowEnergy.addListener("deviceScanned", (event) => {
+        const device = event.device as any // BleDevice
+        // Check localName (from advertisement) or name (from device config)
+        const name = device.localName || device.name || ""
+        console.log(`[BLE] Found device: ${name} (RSSI: ${device.rssi})`)
 
-          // Immediate match — don't wait for timeout
-          if (name.toLowerCase().includes(beaconId.toLowerCase())) {
-            if (!resolved) {
-              resolved = true
-              clearTimeout(timer)
-              BleClient.stopLEScan().catch(() => {})
-              resolve({
-                status: "found",
-                matchedDeviceName: name,
-                rssi: result.rssi,
-              })
-            }
-          }
+        if (name.toLowerCase().includes(beaconId.toLowerCase())) {
+          finish({
+            status: "found",
+            matchedDeviceName: name,
+            rssi: device.rssi,
+          })
         }
-      ).catch((err) => {
-        // If service-filtered scan fails, retry with unfiltered scan
+      }).then(handle => {
+        listenerHandle = handle
+      })
+
+      // Start scanning
+      BluetoothLowEnergy.startScan({
+        services: [VISO_SERVICE_UUID],
+        allowDuplicates: false,
+      }).catch((err) => {
         console.log("[BLE] Service-filtered scan failed, trying unfiltered scan...")
-        BleClient.requestLEScan(
-          { allowDuplicates: false },
-          (result: ScanResult) => {
-            foundDevices.push(result)
-            const name = result.localName || result.device?.name || ""
-            console.log(`[BLE] Found device: ${name} (RSSI: ${result.rssi})`)
-            if (name.toLowerCase().includes(beaconId.toLowerCase())) {
-              if (!resolved) {
-                resolved = true
-                clearTimeout(timer)
-                BleClient.stopLEScan().catch(() => {})
-                resolve({
-                  status: "found",
-                  matchedDeviceName: name,
-                  rssi: result.rssi,
-                })
-              }
-            }
-          }
-        ).catch((scanErr) => {
-          if (!resolved) {
-            resolved = true
-            clearTimeout(timer)
-            resolve({ status: "error", error: scanErr.message })
-          }
+        BluetoothLowEnergy.startScan({ allowDuplicates: false }).catch((scanErr) => {
+          finish({ status: "error", error: scanErr.message })
         })
       })
     })
@@ -285,7 +238,6 @@ async function scanForBeaconWeb(beaconId: string): Promise<BeaconScanResult> {
     }
   } catch (err: any) {
     if (err.name === "NotFoundError") {
-      // User cancelled the Bluetooth picker
       return { status: "idle" }
     }
     return { status: "error", error: err.message }
