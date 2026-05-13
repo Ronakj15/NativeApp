@@ -43,7 +43,7 @@ export function PermissionsGate({ children }: { children: React.ReactNode }) {
 
     // Check BLE
     try {
-      await BleClient.initialize({ androidNeverForLocation: false })
+      await BleClient.initialize({ androidNeverForLocation: true })
       const enabled = await BleClient.isEnabled()
       if (enabled) {
         setBleStatus("granted")
@@ -76,7 +76,7 @@ export function PermissionsGate({ children }: { children: React.ReactNode }) {
   async function requestBle() {
     try {
       setBleStatus("pending")
-      await BleClient.initialize({ androidNeverForLocation: false })
+      await BleClient.initialize({ androidNeverForLocation: true })
       const enabled = await BleClient.isEnabled()
       if (!enabled) {
         try {

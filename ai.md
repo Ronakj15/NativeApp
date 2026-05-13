@@ -57,10 +57,10 @@ All dependencies were audited and updated to their latest stable 2026 versions.
     *   `lucide-react` (v1.14.0) - Replaced brand icons.
     *   `sonner` (v2.0.7)
     *   `recharts` (v3.8.1) - Removed redundant standalone `ResponsiveContainer` imports (now built-in) and applied `accessibilityLayer={false}` to suppress unwanted focus outlines.
+    *   `@google/genai` - Migrated from legacy `@google/generative-ai` to the new v1 SDK, updating AI actions to use `GoogleGenAI` class and `.models.generateContent` API.
 *   **Skipped/Frozen Dependencies:**
     *   `typescript` kept at 5.7.3 (avoided TS 6.0 breaking default strictness).
     *   `zod` kept at 3.x (avoided Zod 4.x major API rewrite).
-    *   `@google/generative-ai` kept as legacy (migration to new `@google/genai` is pending).
 
 ## Known Constraints
 *   **iOS Builds:** `npx cap run ios` must be executed on a macOS environment with Xcode installed.

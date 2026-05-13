@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenAI } from "@google/genai"
 
 // ── Available models ──
 const MODELS = {
@@ -85,20 +85,22 @@ export async function parseTimetableImage(base64Image: string, mimeType: string)
   if (!apiKey) return { error: "AI service not configured. Please add NEXT_PUBLIC_GOOGLE_GENERATIVE_AI_API_KEY to your .env.local file." }
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: MODELS.vision })
+    const ai = new GoogleGenAI({ apiKey })
 
-    const result = await model.generateContent([
-      { text: SYSTEM_PROMPT },
-      {
-        inlineData: {
-          mimeType: mimeType,
-          data: base64Image,
+    const response = await ai.models.generateContent({
+      model: MODELS.vision,
+      contents: [
+        SYSTEM_PROMPT,
+        {
+          inlineData: {
+            mimeType: mimeType,
+            data: base64Image,
+          },
         },
-      },
-    ])
+      ],
+    })
 
-    const responseText = result.response.text()
+    const responseText = response.text || ""
     const cleaned = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
     const parsed = JSON.parse(cleaned) as ParsedTimetable
 
@@ -282,10 +284,12 @@ Instructions:
 User message: ${message}`
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: MODELS.chat })
-    const result = await model.generateContent(contextPrompt)
-    return { reply: result.response.text() }
+    const ai = new GoogleGenAI({ apiKey })
+    const response = await ai.models.generateContent({
+      model: MODELS.chat,
+      contents: contextPrompt
+    })
+    return { reply: response.text || "" }
   } catch (err: any) {
     console.error("AI chat error:", err)
     return { error: `AI error: ${err.message}` }
@@ -343,10 +347,12 @@ Format with markdown: use headers, tables, bold stats, and emoji for visual clar
 Be specific with numbers — don't say "some students", say "12 students (23%)".`
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: MODELS.analysis })
-    const result = await model.generateContent(prompt)
-    return { analysis: result.response.text() }
+    const ai = new GoogleGenAI({ apiKey })
+    const response = await ai.models.generateContent({
+      model: MODELS.analysis,
+      contents: prompt
+    })
+    return { analysis: response.text || "" }
   } catch (err: any) {
     console.error("AI analysis error:", err)
     return { error: `Analysis failed: ${err.message}` }
