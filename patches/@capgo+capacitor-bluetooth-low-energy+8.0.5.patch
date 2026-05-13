@@ -1,0 +1,12 @@
+diff --git a/node_modules/@capgo/capacitor-bluetooth-low-energy/android/build.gradle b/node_modules/@capgo/capacitor-bluetooth-low-energy/android/build.gradle
+index 7412d3c..163a0df 100644
+--- a/node_modules/@capgo/capacitor-bluetooth-low-energy/android/build.gradle
++++ b/node_modules/@capgo/capacitor-bluetooth-low-energy/android/build.gradle
+@@ -44,7 +44,6 @@ android {
+ 
+ repositories {
+     google()
+-    jcenter()
+     mavenCentral()
+ }
+ 
